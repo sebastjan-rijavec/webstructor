@@ -1,9 +1,10 @@
 import "./styles.css";
-import { createViewport } from "./scene/viewport";
+import * as THREE from "three";
+import { createViewport, type ViewName } from "./scene/viewport";
 import { listElements, instantiate, type ElementDefinition } from "./library";
 import { renderSidebar } from "./ui/sidebar";
 import { Selection } from "./editing/selection";
-import { TransformManager, snapshot } from "./editing/transform";
+import { TransformManager } from "./editing/transform";
 import { pickTopLevel, screenToNdc } from "./editing/picking";
 import { History } from "./editing/history";
 import {
@@ -17,23 +18,25 @@ import { exportScene } from "./export/gltf";
 
 const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const viewport = createViewport(canvas);
-const selection = new Selection();
+const selection = new Selection(viewport.helpers);
 const history = new History();
+
+viewport.onTick(() => selection.updateHelpers());
 
 const transform = new TransformManager({
   camera: viewport.camera,
   domElement: canvas,
   scene: viewport.scene,
   orbit: viewport.controls,
-  onCommit: (obj, before) => {
-    history.push(transformCommand(obj, before, snapshot(obj)));
+  onCommit: (records) => {
+    history.push(transformCommand(records));
   },
 });
 
-// Selection drives TransformControls attachment.
+// Selection drives TransformControls attachment. With >1 selected, transforms
+// are routed through an internal pivot so the whole selection moves together.
 selection.onChange((sel) => {
-  // Attach to the primary (last selected) object.
-  transform.attach(sel.length > 0 ? sel[sel.length - 1] : null);
+  transform.setObjects(sel);
 });
 
 // --- Sidebar ---------------------------------------------------------------
@@ -41,8 +44,8 @@ const sidebarEl = document.getElementById("library-list")!;
 renderSidebar({
   container: sidebarEl,
   elements: listElements(),
-  onPick: (def: ElementDefinition) => {
-    const obj = instantiate(def.id);
+  onPick: async (def: ElementDefinition) => {
+    const obj = await instantiate(def.id);
     history.execute(addCommand(viewport.root, obj, selection));
   },
 });
@@ -75,10 +78,21 @@ canvas.addEventListener("pointerup", (e) => {
 
 // --- Toolbar ---------------------------------------------------------------
 const toolbar = document.getElementById("toolbar")!;
+const toolbar2 = document.getElementById("toolbar2")!;
 const modeButtons = toolbar.querySelectorAll<HTMLButtonElement>(".mode-btn");
+const viewButtons = toolbar.querySelectorAll<HTMLButtonElement>(".view-btn");
+const fovButtons = toolbar2.querySelectorAll<HTMLButtonElement>(".fov-btn");
 const snapToggle = document.getElementById("snap-toggle") as HTMLInputElement;
 const undoBtn = toolbar.querySelector<HTMLButtonElement>('[data-action="undo"]')!;
 const redoBtn = toolbar.querySelector<HTMLButtonElement>('[data-action="redo"]')!;
+
+toolbar2.addEventListener("click", async (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-fov]");
+  if (!btn) return;
+  const fov = parseFloat(btn.dataset.fov!);
+  fovButtons.forEach((b) => b.classList.toggle("active", b === btn));
+  await viewport.setFov(fov);
+});
 
 function setMode(mode: "translate" | "rotate" | "scale") {
   transform.setMode(mode);
@@ -87,7 +101,28 @@ function setMode(mode: "translate" | "rotate" | "scale") {
   });
 }
 
+/** Bbox of the selection — or undefined if nothing selected. */
+function selectionBbox(): THREE.Box3 | undefined {
+  if (selection.list.length === 0) return undefined;
+  const bbox = new THREE.Box3();
+  for (const obj of selection.list) bbox.expandByObject(obj);
+  return bbox;
+}
+
+async function frameTarget() {
+  const bbox = selectionBbox() ?? new THREE.Box3().setFromObject(viewport.root);
+  await viewport.frame(bbox);
+}
+
 toolbar.addEventListener("click", async (e) => {
+  const viewBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-view]");
+  if (viewBtn) {
+    const v = viewBtn.dataset.view as ViewName;
+    if (v === viewport.view) return;
+    viewButtons.forEach((b) => b.classList.toggle("active", b === viewBtn));
+    await viewport.setView(v, selectionBbox());
+    return;
+  }
   const target = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-action]");
   if (!target) return;
   const action = target.dataset.action;
@@ -114,6 +149,9 @@ toolbar.addEventListener("click", async (e) => {
     case "group":
       if (selection.list.length >= 2)
         history.execute(groupCommand(viewport.root, selection.list, selection));
+      break;
+    case "frame":
+      await frameTarget();
       break;
     case "export":
       try {
@@ -187,6 +225,9 @@ window.addEventListener("keydown", (e) => {
       break;
     case "x":
       snapToggle.checked = transform.toggleSnap();
+      break;
+    case "f":
+      frameTarget();
       break;
   }
 });

@@ -8,8 +8,10 @@ export interface ElementDefinition {
   category: ElementCategory;
   /** Single-character or short label shown above the name in the sidebar. */
   glyph?: string;
-  /** Build a fresh, self-contained Object3D ready to drop into the scene. */
-  create: () => THREE.Object3D;
+  /** Build a fresh, self-contained Object3D ready to drop into the scene.
+   * Async forms are supported for elements backed by external resources
+   * (e.g. GLB models). */
+  create: () => THREE.Object3D | Promise<THREE.Object3D>;
 }
 
 const registry = new Map<string, ElementDefinition>();
@@ -33,10 +35,10 @@ export function listElements(): ElementDefinition[] {
  * Instantiate an element by id. The returned object is tagged with the
  * definition id in userData so we can round-trip / reference it later.
  */
-export function instantiate(id: string): THREE.Object3D {
+export async function instantiate(id: string): Promise<THREE.Object3D> {
   const def = registry.get(id);
   if (!def) throw new Error(`Unknown element: ${id}`);
-  const obj = def.create();
+  const obj = await Promise.resolve(def.create());
   obj.userData.elementId = def.id;
   if (!obj.name) obj.name = def.label;
   return obj;

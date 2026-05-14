@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Command } from "./history";
 import type { Selection } from "./selection";
-import type { TransformSnapshot } from "./transform";
+import type { TransformRecord } from "./transform";
 
 export function addCommand(
   root: THREE.Object3D,
@@ -42,14 +42,29 @@ export function deleteCommand(
   };
 }
 
+function deepCloneObject(src: THREE.Object3D): THREE.Object3D {
+  // Object3D.clone(true) copies the tree but shares geometry & material
+  // references. We need per-instance ownership so transforms / parameter edits
+  // on one duplicate don't bleed into siblings.
+  const clone = src.clone(true);
+  clone.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry = mesh.geometry.clone();
+    mesh.material = Array.isArray(mesh.material)
+      ? mesh.material.map((m) => m.clone())
+      : mesh.material.clone();
+  });
+  return clone;
+}
+
 export function duplicateCommand(
   root: THREE.Object3D,
   sources: THREE.Object3D[],
   selection: Selection,
 ): Command {
   const clones = sources.map((src) => {
-    const clone = src.clone(true);
-    // Clone shares geometries/materials, which is fine for now.
+    const clone = deepCloneObject(src);
     // Offset a bit so the copy is visible.
     clone.position.add(new THREE.Vector3(0.5, 0, 0.5));
     return clone;
@@ -144,22 +159,26 @@ export function groupCommand(
   };
 }
 
-export function transformCommand(
-  obj: THREE.Object3D,
-  before: TransformSnapshot,
-  after: TransformSnapshot,
-): Command {
+export function transformCommand(records: TransformRecord[]): Command {
+  const label =
+    records.length === 1
+      ? `Transform ${records[0].obj.name || "object"}`
+      : `Transform ${records.length} objects`;
   return {
-    label: `Transform ${obj.name || "object"}`,
+    label,
     do() {
-      obj.position.copy(after.position);
-      obj.quaternion.copy(after.quaternion);
-      obj.scale.copy(after.scale);
+      for (const r of records) {
+        r.obj.position.copy(r.after.position);
+        r.obj.quaternion.copy(r.after.quaternion);
+        r.obj.scale.copy(r.after.scale);
+      }
     },
     undo() {
-      obj.position.copy(before.position);
-      obj.quaternion.copy(before.quaternion);
-      obj.scale.copy(before.scale);
+      for (const r of records) {
+        r.obj.position.copy(r.before.position);
+        r.obj.quaternion.copy(r.before.quaternion);
+        r.obj.scale.copy(r.before.scale);
+      }
     },
   };
 }

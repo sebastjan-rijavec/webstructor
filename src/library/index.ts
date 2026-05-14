@@ -1,5 +1,6 @@
 // Side-effect imports register elements into the registry.
 import "./primitives";
+import "./models";
 
 export {
   type ElementDefinition,

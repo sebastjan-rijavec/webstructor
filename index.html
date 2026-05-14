@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Webstructor</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <header class="sidebar-header">
+          <h1>Webstructor</h1>
+          <p class="subtitle">Library</p>
+        </header>
+        <div id="library-list" class="library-list"></div>
+      </aside>
+
+      <main id="viewport-wrap">
+        <div id="toolbar">
+          <div class="toolbar-group">
+            <button data-action="undo" title="Undo (Ctrl+Z)">Undo</button>
+            <button data-action="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+          </div>
+          <div class="toolbar-group">
+            <button data-action="translate" title="Translate (W)" class="mode-btn active">Move</button>
+            <button data-action="rotate" title="Rotate (E)" class="mode-btn">Rotate</button>
+            <button data-action="scale" title="Scale (R)" class="mode-btn">Scale</button>
+          </div>
+          <div class="toolbar-group">
+            <label class="toggle">
+              <input type="checkbox" id="snap-toggle" />
+              <span>Snap</span>
+            </label>
+          </div>
+          <div class="toolbar-group">
+            <button data-action="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button>
+            <button data-action="group" title="Group (Ctrl+G)">Group</button>
+            <button data-action="delete" title="Delete (Del)">Delete</button>
+          </div>
+          <div class="toolbar-group right">
+            <button data-action="export" class="primary" title="Export as GLB">Export GLB</button>
+          </div>
+        </div>
+        <canvas id="viewport"></canvas>
+        <div id="hint">Click a library item to add it. Click an object to select. W/E/R: move/rotate/scale. Hold Shift for snap.</div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

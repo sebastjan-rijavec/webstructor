@@ -198,6 +198,11 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
     canvas,
     antialias: true,
     preserveDrawingBuffer: false,
+    // Logarithmic depth buffer keeps precision uniform across the near/far
+    // range. Fixes the z-fighting shimmer that shows up at narrow FOVs
+    // (FOV 10° dollies the camera ~5× further out, magnifying coincident
+    // geometry in the GLB detail assets).
+    logarithmicDepthBuffer: true,
   });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -212,7 +217,10 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-  const camera = new THREE.PerspectiveCamera(INITIAL_FOV, 1, 0.01, 1000);
+  // near=0.1 (not 0.01) — 10× more depth-buffer precision for a typical
+  // kitbash scene. Combined with logarithmicDepthBuffer above this removes
+  // the narrow-FOV z-fighting on coincident GLB geometry.
+  const camera = new THREE.PerspectiveCamera(INITIAL_FOV, 1, 0.1, 1000);
   camera.position.set(4, 3, 6);
   camera.lookAt(0, 0.5, 0);
 

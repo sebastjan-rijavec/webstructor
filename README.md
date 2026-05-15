@@ -4,11 +4,17 @@ Browser-based **kitbashing tool** built on three.js. Compose scenes from a
 data-driven library of elements (primitives + GLB assets) and export the
 result as a single `.glb` file.
 
-Stack: **Vite + Vanilla TypeScript + three.js** — no React, no R3F.
+The application should allow for a natural gesticularity of making a 3D model, 
+instead of the tested Thumble 3D View and interact with the mouse. The app 
+works in 2 principal ways: 
+- TRS (Transform, Rotate, Scale) to position pieces in a 3D scene
+- Procedural tools (Copy geometry to locations). 
 
-> **Status:** early-stage scaffolding. Primitives and GLB assets are
-> placeholders; the long-term creative payload is a family of **procedural
-> widgets** (parameterized, generated geometry) built on the same registry.
+
+Stack: 
+- **Vite + Vanilla TypeScript**
+- **three.js**
+- **custom UI library** 
 
 ---
 
@@ -26,24 +32,7 @@ No environment variables required.
 ---
 
 ## Controls
-
-| Input | Action |
-| ----- | ------ |
-| Left-click an item in the sidebar | Add element to the scene |
-| Left-click an object | Select |
-| Shift + click | Toggle selection (multi-select) |
-| Click empty space | Clear selection |
-| **W / E / R** | Translate / Rotate / Scale gizmo mode |
-| **X** | Toggle snapping (0.25 / 15° / 0.1) |
-| Hold Shift while dragging gizmo | Temporary snap |
-| **F** | Frame the current selection (or all content if nothing selected) |
-| **Ctrl + D** | Duplicate selection |
-| **Ctrl + G** | Group ≥2 selected objects |
-| **Delete** | Delete selection |
-| **Ctrl + Z / Ctrl + Shift + Z** | Undo / Redo |
-| Toolbar view buttons (3D, F, B, L, R, T, Bot) | Switch named camera view (animated) |
-| Toolbar FOV row (10°…100°) | Animate the perspective FOV |
-| **Export GLB** | Download the scene as a `.glb` file |
+To be implemented in the custom UI library.
 
 ---
 
@@ -122,9 +111,6 @@ groups behave correctly.
 
 ### Backlog / Tickets
 
-Logical next work items inferred from the current code shape and the
-project's stated goal (procedural widgets). These are not yet GitHub issues;
-file them upstream as they get picked up.
 
 #### P0 — unblocks the procedural-widget direction
 

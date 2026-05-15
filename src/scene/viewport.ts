@@ -272,12 +272,19 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
 
   // Invisible shadow catcher at Y=0 — receives sun shadows so the cast
   // shadow shows up on the ground plane. ShadowMaterial draws nothing
-  // except the shadow, so the grid stays visible through it.
+  // except the shadow itself.
+  //   - depthWrite: false   so the catcher doesn't occlude the grid (which
+  //     is coplanar at Y=0) or the bottom faces of objects sitting on the
+  //     ground. Default for transparent materials is depthWrite:true,
+  //     which writes Y=0 depths and hides anything else at the same plane.
+  //   - position Y=-0.001   defensive nudge to keep the catcher beneath
+  //     anything authored exactly at Y=0.
   const shadowCatcher = new THREE.Mesh(
     new THREE.PlaneGeometry(40, 40),
-    new THREE.ShadowMaterial({ opacity: 0.28 }),
+    new THREE.ShadowMaterial({ opacity: 0.28, depthWrite: false }),
   );
   shadowCatcher.rotation.x = -Math.PI / 2;
+  shadowCatcher.position.y = -0.001;
   shadowCatcher.receiveShadow = true;
   shadowCatcher.name = "__shadowCatcher";
   helpers.add(shadowCatcher);
@@ -304,6 +311,10 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   n8aoPass.configuration.aoRadius = 1.2;
   n8aoPass.configuration.distanceFalloff = 1.0;
   n8aoPass.configuration.intensity = 3.0;
+  // RenderPass already drew the beauty colour; don't let N8AO re-render the
+  // scene with its own internal pass — it can miss recently added meshes
+  // and applies its own material overrides.
+  n8aoPass.configuration.autoRenderBeauty = false;
   n8aoPass.setQualityMode("Medium");
   composer.addPass(n8aoPass);
   composer.addPass(new OutputPass());

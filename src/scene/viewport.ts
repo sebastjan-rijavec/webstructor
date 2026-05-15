@@ -481,12 +481,8 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
     }
     const k = easeInOutCubic(elapsed / s.duration);
 
-    // Orbit target and up vector animate globally start → end so they don't
-    // restart at the waypoint. For up in particular, a per-leg slerp produces
-    // a visible kick when the first leg has constant up (e.g. BACK→RIGHT) and
-    // the second suddenly starts rotating it (RIGHT→TOP).
+    // Orbit target lerps linearly — typically a fixed point.
     tmpTarget.copy(s.start.orbitTarget).lerp(s.end.orbitTarget, k);
-    slerpVec(tmpUp, s.start.up, s.end.up, k);
 
     let radius: number;
     if (s.via) {
@@ -497,6 +493,15 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
       slerpVec(tmpA, s.start.dir, s.via.dir, k);
       slerpVec(tmpB, s.via.dir, s.end.dir, k);
       slerpVec(tmpDir, tmpA, tmpB, k);
+      // Same Bezier on the up vector. Critical for pole↔pole transitions
+      // (BOTTOM↔TOP): start.up and end.up are antipodal there, so a global
+      // start→end slerp would fall into slerpVec's antipodal branch and
+      // rotate through an arbitrary perpendicular axis — flipping the
+      // camera upside-down at the midpoint. Routing via.up (world up at
+      // FRONT) gives a clean great-circle path with no flip.
+      slerpVec(tmpA, s.start.up, s.via.up, k);
+      slerpVec(tmpB, s.via.up, s.end.up, k);
+      slerpVec(tmpUp, tmpA, tmpB, k);
       // Scalar quadratic Bezier for radius — matches the position curve's
       // C1 continuity so dolly speed doesn't pop at the waypoint either.
       const ra = s.start.radius + (s.via.radius - s.start.radius) * k;
@@ -504,6 +509,7 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
       radius = ra + (rb - ra) * k;
     } else {
       slerpVec(tmpDir, s.start.dir, s.end.dir, k);
+      slerpVec(tmpUp, s.start.up, s.end.up, k);
       radius = s.start.radius + (s.end.radius - s.start.radius) * k;
     }
 

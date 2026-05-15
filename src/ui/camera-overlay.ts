@@ -1,0 +1,107 @@
+import type * as THREE from "three";
+import type { Viewport, ViewName } from "../scene/viewport";
+
+interface CameraOverlayOptions {
+  container: HTMLElement;
+  viewport: Viewport;
+  getSelectionBbox: () => THREE.Box3 | undefined;
+  onFrame: () => void;
+}
+
+interface CameraOverlayHandle {
+  dispose: () => void;
+}
+
+const LABEL: Record<ViewName, string> = {
+  perspective: "3D",
+  front: "FRONT",
+  back: "BACK",
+  left: "LEFT",
+  right: "RIGHT",
+  top: "TOP",
+  bottom: "BOT",
+};
+
+/**
+ * Radial camera overlay — mounts inside `container` (typically the relatively-
+ * positioned viewport wrapper). Snaps the camera to the clicked view and
+ * reflects the viewport's live view in the header label + active button. The
+ * old toolbar continues to drive `viewport.setView` in parallel; this overlay
+ * stays in sync by polling `viewport.view` on each frame.
+ */
+export function createCameraOverlay(
+  opts: CameraOverlayOptions,
+): CameraOverlayHandle {
+  const { container, viewport, getSelectionBbox, onFrame } = opts;
+
+  const el = document.createElement("div");
+  el.className = "camera-overlay";
+  el.innerHTML = `
+    <div class="camera-overlay-header">
+      <span class="camera-overlay-dot"></span>
+      VIEW <strong class="camera-overlay-view-name">3D</strong>
+    </div>
+    <div class="camera-overlay-ring">
+      <div class="camera-overlay-outer-ring"></div>
+      <div class="camera-overlay-inner-ring"></div>
+      <span class="camera-overlay-pitch-label">PITCH</span>
+      <button class="cam-btn cam-outer cam-front" data-view="front">FRONT</button>
+      <button class="cam-btn cam-outer cam-back" data-view="back">BACK</button>
+      <button class="cam-btn cam-outer cam-left" data-view="left">LEFT</button>
+      <button class="cam-btn cam-outer cam-right" data-view="right">RIGHT</button>
+      <button class="cam-btn cam-inner cam-bot" data-view="bottom">BOT</button>
+      <button class="cam-btn cam-inner cam-top" data-view="top">TOP</button>
+      <button class="cam-btn cam-center" data-view="perspective">3D</button>
+    </div>
+    <button class="camera-overlay-frame" data-action="frame">FRAME</button>
+  `;
+  container.appendChild(el);
+
+  const frameBtn = el.querySelector<HTMLButtonElement>(
+    ".camera-overlay-frame",
+  )!;
+  frameBtn.addEventListener("click", onFrame);
+
+  const viewNameEl = el.querySelector<HTMLElement>(
+    ".camera-overlay-view-name",
+  )!;
+  const buttons = el.querySelectorAll<HTMLButtonElement>("button[data-view]");
+
+  let currentView: ViewName = viewport.view;
+
+  function applyActive(view: ViewName): void {
+    currentView = view;
+    viewNameEl.textContent = LABEL[view];
+    buttons.forEach((b) => {
+      b.classList.toggle("active", b.dataset.view === view);
+    });
+  }
+
+  applyActive(currentView);
+
+  const onClick = async (e: Event): Promise<void> => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+      "button[data-view]",
+    );
+    if (!btn) return;
+    const v = btn.dataset.view as ViewName;
+    if (v === viewport.view) return;
+    applyActive(v);
+    await viewport.setView(v, getSelectionBbox());
+  };
+  el.addEventListener("click", onClick);
+
+  // Keep the overlay in sync when another UI (the legacy toolbar) drives the
+  // view. Polling on tick is cheap — a single string compare per frame.
+  const unsubscribeTick = viewport.onTick(() => {
+    if (viewport.view !== currentView) applyActive(viewport.view);
+  });
+
+  return {
+    dispose: () => {
+      unsubscribeTick();
+      el.removeEventListener("click", onClick);
+      el.remove();
+    },
+  };
+}

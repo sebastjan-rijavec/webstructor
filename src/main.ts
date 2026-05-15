@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { createViewport, type ViewName } from "./scene/viewport";
 import { listElements, instantiate, type ElementDefinition } from "./library";
 import { renderSidebar } from "./ui/sidebar";
+import { createRightRail } from "./ui/right-rail";
 import { Selection } from "./editing/selection";
 import { TransformManager } from "./editing/transform";
 import { pickTopLevel, screenToNdc } from "./editing/picking";
@@ -99,6 +100,7 @@ function setMode(mode: "translate" | "rotate" | "scale") {
   modeButtons.forEach((b) => {
     b.classList.toggle("active", b.dataset.action === mode);
   });
+  rail.setMode(mode);
 }
 
 /** Bbox of the selection — or undefined if nothing selected. */
@@ -113,6 +115,42 @@ async function frameTarget() {
   const bbox = selectionBbox() ?? new THREE.Box3().setFromObject(viewport.root);
   await viewport.frame(bbox);
 }
+
+// --- Right rail (Mighty UI) -----------------------------------------------
+// Floating right-side control panel: camera widget + FRAME, transform mode,
+// snap, edit ops, history. Lives alongside the legacy top toolbar — both
+// drive the same actions. The legacy `setMode`, the snap toggle, and the
+// history.onChange handlers below are extended to also call rail.set*()
+// so the rail's visual state stays in sync.
+const rail = createRightRail({
+  container: document.getElementById("viewport-wrap")!,
+  viewport,
+  getSelectionBbox: selectionBbox,
+  onFrame: frameTarget,
+  onSetMode: (mode) => setMode(mode),
+  onToggleSnap: (snap) => {
+    snapToggle.checked = snap;
+    transform.setSnap(snap);
+  },
+  onUndo: () => history.undo(),
+  onRedo: () => history.redo(),
+  onDuplicate: () => {
+    if (selection.list.length)
+      history.execute(duplicateCommand(viewport.root, selection.list, selection));
+  },
+  onGroup: () => {
+    if (selection.list.length >= 2)
+      history.execute(groupCommand(viewport.root, selection.list, selection));
+  },
+  onDelete: () => {
+    if (selection.list.length)
+      history.execute(deleteCommand(viewport.root, selection.list, selection));
+  },
+});
+
+// Initial sync — both UIs start in the same state.
+rail.setMode("translate");
+rail.setSnap(snapToggle.checked);
 
 toolbar.addEventListener("click", async (e) => {
   const viewBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-view]");
@@ -164,11 +202,15 @@ toolbar.addEventListener("click", async (e) => {
   }
 });
 
-snapToggle.addEventListener("change", () => transform.setSnap(snapToggle.checked));
+snapToggle.addEventListener("change", () => {
+  transform.setSnap(snapToggle.checked);
+  rail.setSnap(snapToggle.checked);
+});
 
 history.onChange((canUndo, canRedo) => {
   undoBtn.disabled = !canUndo;
   redoBtn.disabled = !canRedo;
+  rail.setHistoryState(canUndo, canRedo);
 });
 undoBtn.disabled = true;
 redoBtn.disabled = true;
@@ -225,6 +267,7 @@ window.addEventListener("keydown", (e) => {
       break;
     case "x":
       snapToggle.checked = transform.toggleSnap();
+      rail.setSnap(snapToggle.checked);
       break;
     case "f":
       frameTarget();

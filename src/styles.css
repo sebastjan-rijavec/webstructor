@@ -203,3 +203,314 @@ button.primary:hover {
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* --- Right rail (Mighty UI / milestone #4) ------------------------------- */
+/* Floating control rail anchored to the top-right of the viewport. Contains
+   the radial camera widget plus stacked control sections (transform mode,
+   snap, edit ops, history). Lives in parallel with the legacy top toolbar;
+   both drive the same actions, and the rail exposes setMode/setSnap/
+   setHistoryState so external state changes can sync the rail visually. */
+
+.right-rail {
+  --rail-bg: #e8e0d0;
+  --rail-fg: #2a2520;
+  --rail-line: #2a2520;
+  --rail-accent: #d9532e;
+  --rail-width: 280px;
+
+  position: absolute;
+  top: 92px;
+  right: 24px;
+  width: var(--rail-width);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  color: var(--rail-fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  user-select: none;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.camera-overlay {
+  /* Camera widget is one section among many on the rail. The widget's
+     palette is shared with the rail; sizing is local to the radial layout. */
+  --cam-bg: var(--rail-bg);
+  --cam-fg: var(--rail-fg);
+  --cam-line: var(--rail-line);
+  --cam-accent: var(--rail-accent);
+  --cam-size: var(--rail-width);
+  --cam-outer-radius: 110px;
+  --cam-inner-radius: 50px;
+  --cam-btn-outer: 48px;
+  --cam-btn-inner: 36px;
+  --cam-btn-center: 48px;
+
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--cam-fg);
+}
+
+.camera-overlay-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.camera-overlay-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cam-accent);
+}
+
+.camera-overlay-view-name {
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.camera-overlay-ring {
+  position: relative;
+  width: var(--cam-size);
+  height: var(--cam-size);
+  pointer-events: none;
+}
+
+.camera-overlay-outer-ring,
+.camera-overlay-inner-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.camera-overlay-outer-ring {
+  width: calc(var(--cam-outer-radius) * 2);
+  height: calc(var(--cam-outer-radius) * 2);
+  border: 1px solid var(--cam-line);
+}
+
+.camera-overlay-inner-ring {
+  width: calc(var(--cam-inner-radius) * 2);
+  height: calc(var(--cam-inner-radius) * 2);
+  border: 1px dashed var(--cam-line);
+  opacity: 0.55;
+}
+
+.camera-overlay-pitch-label {
+  position: absolute;
+  top: calc(50% - var(--cam-inner-radius) - 12px);
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--cam-fg);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.cam-btn {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cam-bg);
+  color: var(--cam-fg);
+  border: 1px solid var(--cam-line);
+  border-radius: 50%;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  pointer-events: auto;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.05s ease;
+}
+
+.cam-btn:hover {
+  background: #d8cdb8;
+}
+
+.cam-btn:active {
+  transform: translate(-50%, -50%) scale(0.94);
+}
+
+.cam-btn.cam-outer {
+  width: var(--cam-btn-outer);
+  height: var(--cam-btn-outer);
+  transform: translate(-50%, -50%);
+}
+
+.cam-btn.cam-inner {
+  width: var(--cam-btn-inner);
+  height: var(--cam-btn-inner);
+  transform: translate(-50%, -50%);
+  font-size: 9px;
+}
+
+.cam-btn.cam-center {
+  width: var(--cam-btn-center);
+  height: var(--cam-btn-center);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--cam-accent);
+  color: #ffffff;
+  border-color: var(--cam-accent);
+  font-weight: 700;
+}
+
+.cam-btn.cam-front {
+  top: calc(50% - var(--cam-outer-radius));
+  left: 50%;
+}
+.cam-btn.cam-back {
+  top: calc(50% + var(--cam-outer-radius));
+  left: 50%;
+}
+.cam-btn.cam-left {
+  top: 50%;
+  left: calc(50% - var(--cam-outer-radius));
+}
+.cam-btn.cam-right {
+  top: 50%;
+  left: calc(50% + var(--cam-outer-radius));
+}
+
+/* Inner ring positions match the design: BOT at NW, TOP at SE — 45° off the
+   cardinal axes. cos(45°) * inner-radius ≈ 35px for the chosen radius. */
+.cam-btn.cam-bot {
+  top: calc(50% - 0.7071 * var(--cam-inner-radius));
+  left: calc(50% - 0.7071 * var(--cam-inner-radius));
+}
+.cam-btn.cam-top {
+  top: calc(50% + 0.7071 * var(--cam-inner-radius));
+  left: calc(50% + 0.7071 * var(--cam-inner-radius));
+}
+
+/* Active state — applied to the button matching the live view. The center
+   3D button already styles as red; .active gives the same treatment to the
+   currently selected outer/inner button. */
+.cam-btn.active:not(.cam-center) {
+  background: var(--cam-accent);
+  border-color: var(--cam-accent);
+  color: #ffffff;
+}
+
+/* When a non-center view is active, the center 3D button reverts to the
+   neutral cream look so it doesn't read as also-active. */
+.camera-overlay-ring:has(.cam-outer.active, .cam-inner.active)
+  .cam-btn.cam-center {
+  background: var(--cam-bg);
+  color: var(--cam-fg);
+  border-color: var(--cam-line);
+  font-weight: 400;
+}
+
+.camera-overlay-frame {
+  margin-top: 4px;
+  background: var(--cam-bg);
+  color: var(--cam-fg);
+  border: 1px solid var(--cam-line);
+  border-radius: 999px;
+  padding: 6px 18px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.12s ease, transform 0.05s ease;
+}
+
+.camera-overlay-frame:hover {
+  background: #d8cdb8;
+}
+
+.camera-overlay-frame:active {
+  transform: scale(0.96);
+}
+
+/* --- Right rail sections ------------------------------------------------- */
+
+.right-rail-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.right-rail-section {
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.rail-btn {
+  flex: 1;
+  background: var(--rail-bg);
+  color: var(--rail-fg);
+  border: 1px solid var(--rail-line);
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease,
+    transform 0.05s ease;
+}
+
+.rail-btn:hover:not(:disabled) {
+  background: #d8cdb8;
+}
+
+.rail-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.rail-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Segmented active state for the mode row (Move / Rotate / Scale). */
+.rail-mode-btn.active {
+  background: var(--rail-accent);
+  border-color: var(--rail-accent);
+  color: #ffffff;
+}
+
+.rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: var(--rail-bg);
+  border: 1px solid var(--rail-line);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  width: 100%;
+  justify-content: center;
+}
+
+.rail-toggle input {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--rail-accent);
+}

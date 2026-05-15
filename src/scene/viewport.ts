@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { N8AOPostPass } from "n8ao";
 
 export type ViewName =
   | "perspective"
@@ -208,6 +212,8 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xeef0f4);
@@ -231,13 +237,26 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   controls.dampingFactor = 0.08;
   controls.target.set(0, 0.5, 0);
 
-  // Direct lights complement the IBL — they add a key highlight + soft fill,
-  // so they're toned down compared to the previous pure-direct setup.
-  const dir = new THREE.DirectionalLight(0xffffff, 1.1);
-  dir.position.set(5, 8, 6);
+  // Sun — warm, intense directional light casting real shadows. The IBL
+  // still provides indirect diffuse and reflections; the sun adds the
+  // dominant key + shadows so the scene reads as outdoor / lit.
+  const dir = new THREE.DirectionalLight(0xfff4d6, 3.0);
+  dir.position.set(8, 12, 6);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(2048, 2048);
+  dir.shadow.bias = -0.0005;
+  // Orthographic shadow camera sized for a typical kitbash scene. Increase
+  // these bounds (and the resolution above) if large assets clip out of
+  // the shadow frustum.
+  dir.shadow.camera.left = -20;
+  dir.shadow.camera.right = 20;
+  dir.shadow.camera.top = 20;
+  dir.shadow.camera.bottom = -20;
+  dir.shadow.camera.near = 0.5;
+  dir.shadow.camera.far = 60;
   scene.add(dir);
 
-  const fill = new THREE.DirectionalLight(0xa3c4ff, 0.25);
+  const fill = new THREE.DirectionalLight(0xa3c4ff, 0.35);
   fill.position.set(-6, 3, -4);
   scene.add(fill);
 
@@ -250,6 +269,19 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   helpers.add(grid);
   const axes = new THREE.AxesHelper(0.5);
   helpers.add(axes);
+
+  // Invisible shadow catcher at Y=0 — receives sun shadows so the cast
+  // shadow shows up on the ground plane. ShadowMaterial draws nothing
+  // except the shadow, so the grid stays visible through it.
+  const shadowCatcher = new THREE.Mesh(
+    new THREE.PlaneGeometry(40, 40),
+    new THREE.ShadowMaterial({ opacity: 0.28 }),
+  );
+  shadowCatcher.rotation.x = -Math.PI / 2;
+  shadowCatcher.receiveShadow = true;
+  shadowCatcher.name = "__shadowCatcher";
+  helpers.add(shadowCatcher);
+
   scene.add(helpers);
 
   // Root content group — this is what gets exported.
@@ -257,11 +289,32 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   root.name = "Scene";
   scene.add(root);
 
+  // Postprocessing pipeline — N8AO for screen-space ambient occlusion,
+  // OutputPass for tone mapping + colour space at the end. composer.render()
+  // replaces the direct renderer.render() call in the tick loop below.
+  const composer = new EffectComposer(renderer);
+  composer.setPixelRatio(window.devicePixelRatio);
+  composer.addPass(new RenderPass(scene, camera));
+  const n8aoPass = new N8AOPostPass(
+    scene,
+    camera,
+    canvas.clientWidth || 1,
+    canvas.clientHeight || 1,
+  );
+  n8aoPass.configuration.aoRadius = 1.2;
+  n8aoPass.configuration.distanceFalloff = 1.0;
+  n8aoPass.configuration.intensity = 3.0;
+  n8aoPass.setQualityMode("Medium");
+  composer.addPass(n8aoPass);
+  composer.addPass(new OutputPass());
+
   function resize() {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     if (canvas.width !== w || canvas.height !== h) {
       renderer.setSize(w, h, false);
+      composer.setSize(w, h);
+      n8aoPass.setSize(w, h);
       camera.aspect = w / Math.max(1, h);
       camera.updateProjectionMatrix();
     }
@@ -594,7 +647,7 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
     stepAnim();
     controls.update();
     for (const fn of tickCallbacks) fn();
-    renderer.render(scene, camera);
+    composer.render();
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);

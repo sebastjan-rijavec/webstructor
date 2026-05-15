@@ -33,7 +33,9 @@ export function listElements(): ElementDefinition[] {
 
 /**
  * Instantiate an element by id. The returned object is tagged with the
- * definition id in userData so we can round-trip / reference it later.
+ * definition id in userData so we can round-trip / reference it later,
+ * and every contained Mesh has shadow flags enabled so the sun in the
+ * viewport casts/receives shadows uniformly across primitives and GLBs.
  */
 export async function instantiate(id: string): Promise<THREE.Object3D> {
   const def = registry.get(id);
@@ -41,5 +43,12 @@ export async function instantiate(id: string): Promise<THREE.Object3D> {
   const obj = await Promise.resolve(def.create());
   obj.userData.elementId = def.id;
   if (!obj.name) obj.name = def.label;
+  obj.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (mesh.isMesh) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    }
+  });
   return obj;
 }

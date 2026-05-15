@@ -4,3 +4,32 @@ dist
 *.log
 .DS_Store
 .claude/
+
+# Library_X is an 840MB local asset pool. Only the 25 GLBs referenced by
+# src/library/models.ts are committed; the rest stay local for swapping.
+data/Library_X/*
+!data/Library_X/Detail_00.glb
+!data/Library_X/Detail_01.glb
+!data/Library_X/Detail_08.glb
+!data/Library_X/Detail_10.glb
+!data/Library_X/Detail_19.glb
+!data/Library_X/Detail_21.glb
+!data/Library_X/Detail_27.glb
+!data/Library_X/Detail_100.glb
+!data/Library_X/Detail_101.glb
+!data/Library_X/Detail_104.glb
+!data/Library_X/Detail_125.glb
+!data/Library_X/Detail_134.glb
+!data/Library_X/Detail_135.glb
+!data/Library_X/Detail_149.glb
+!data/Library_X/Detail_152.glb
+!data/Library_X/Detail_158.glb
+!data/Library_X/Detail_182.glb
+!data/Library_X/Detail_187.glb
+!data/Library_X/Detail_194.glb
+!data/Library_X/Detail_207.glb
+!data/Library_X/Detail_208.glb
+!data/Library_X/Detail_235.glb
+!data/Library_X/Detail_270.glb
+!data/Library_X/Detail_273.glb
+!data/Library_X/Detail_299.glb

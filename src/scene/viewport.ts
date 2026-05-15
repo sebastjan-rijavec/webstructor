@@ -1,10 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { N8AOPostPass } from "n8ao";
 
 export type ViewName =
   | "perspective"
@@ -296,36 +292,11 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   root.name = "Scene";
   scene.add(root);
 
-  // Postprocessing pipeline — N8AO for screen-space ambient occlusion,
-  // OutputPass for tone mapping + colour space at the end. composer.render()
-  // replaces the direct renderer.render() call in the tick loop below.
-  const composer = new EffectComposer(renderer);
-  composer.setPixelRatio(window.devicePixelRatio);
-  composer.addPass(new RenderPass(scene, camera));
-  const n8aoPass = new N8AOPostPass(
-    scene,
-    camera,
-    canvas.clientWidth || 1,
-    canvas.clientHeight || 1,
-  );
-  n8aoPass.configuration.aoRadius = 1.2;
-  n8aoPass.configuration.distanceFalloff = 1.0;
-  n8aoPass.configuration.intensity = 3.0;
-  // RenderPass already drew the beauty colour; don't let N8AO re-render the
-  // scene with its own internal pass — it can miss recently added meshes
-  // and applies its own material overrides.
-  n8aoPass.configuration.autoRenderBeauty = false;
-  n8aoPass.setQualityMode("Medium");
-  composer.addPass(n8aoPass);
-  composer.addPass(new OutputPass());
-
   function resize() {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     if (canvas.width !== w || canvas.height !== h) {
       renderer.setSize(w, h, false);
-      composer.setSize(w, h);
-      n8aoPass.setSize(w, h);
       camera.aspect = w / Math.max(1, h);
       camera.updateProjectionMatrix();
     }
@@ -658,7 +629,7 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
     stepAnim();
     controls.update();
     for (const fn of tickCallbacks) fn();
-    composer.render();
+    renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);

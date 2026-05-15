@@ -102,9 +102,8 @@ groups behave correctly.
 - ✅ Group operation
 - ✅ Image-based lighting (PMREM-prefiltered `RoomEnvironment`)
 - ✅ Named camera views: perspective + 6 axis views with locked-rotate
-- ✅ Animated view transitions (slerp, great-circle waypoints, cubic ease)
-- ✅ Two-phase "rotate then frame" animation for 3D↔axis
-- ✅ Animated FOV presets (10° / 25° / 40° / 50° / 75° / 100°)
+- ✅ Animated view transitions (slerp, equator-first shortest-path waypoints, cubic ease)
+- ✅ FOV presets (10° / 25° / 40° / 50° / 75° / 100°)
 - ✅ Frame-selection (F key + toolbar button)
 - ✅ GLB export of the entire `root` group
 - ✅ Light theme

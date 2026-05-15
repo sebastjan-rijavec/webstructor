@@ -25,7 +25,7 @@ export interface Viewport {
    * If `bbox` is provided, the camera fits to that bbox at the end of the
    * animation; otherwise it fits to all content in `root`. */
   setView: (view: ViewName, bbox?: THREE.Box3) => Promise<void>;
-  /** Animate the camera FOV to the given value (degrees). */
+  /** Set the camera FOV (degrees) immediately. */
   setFov: (fov: number) => Promise<void>;
   /** Re-center and re-zoom the camera so the given bbox fills the frame.
    * Keeps the current view direction. */
@@ -37,7 +37,6 @@ export interface Viewport {
 
 const VIEW_TRANSITION_MS = 1800;
 const FRAME_TRANSITION_MS = 800;
-const FOV_TRANSITION_MS = 600;
 const INITIAL_FOV = 50;
 // PADDING used when fitting the whole scene (root bbox) at a named view.
 const VIEW_PADDING = 1.15;
@@ -100,49 +99,87 @@ interface ArcSample {
 
 interface AnimState {
   start: ArcSample;
-  /** Great-circle waypoint for antipodal/degenerate axis transitions. */
+  /** Optional intermediate waypoint for non-adjacent axis transitions. */
   via: ArcSample | null;
-  /** Mid-point: root-framed at the target angle. Animation reaches this at the
-   * halfway mark when `frameEnd` is non-null, otherwise at t=1. */
   end: ArcSample;
   endTarget: ViewTarget;
-  /** Optional second-half target: selection-framed at the target angle.
-   * When set, the animation dollies from `end` to `frameEnd` in the second
-   * half — same direction, different radius. */
-  frameEnd: ArcSample | null;
-  frameEndTarget: ViewTarget | null;
   startTime: number;
   duration: number;
   wasDamping: boolean;
   resolve: () => void;
 }
 
-interface FovAnimState {
-  startFov: number;
-  endFov: number;
-  startTime: number;
-  resolve: () => void;
+type AxisView = Exclude<ViewName, "perspective">;
+
+/**
+ * Equator-first adjacency graph for camera view transitions.
+ *
+ * - FRONT/RIGHT/BACK/LEFT form an equator ring.
+ * - TOP and BOTTOM connect to FRONT, LEFT, RIGHT — but NOT to BACK. Going
+ *   from a pole to BACK always routes through LEFT or RIGHT, since rolling
+ *   directly over the scene from a pole to its "behind" side reads as
+ *   disorienting.
+ * - TOP and BOTTOM are not directly connected to each other.
+ *
+ * Diameter is 2, so every transition needs at most one intermediate.
+ */
+const ADJACENCY: Record<AxisView, readonly AxisView[]> = {
+  front: ["right", "left", "top", "bottom"],
+  back: ["right", "left"],
+  left: ["front", "back", "top", "bottom"],
+  right: ["front", "back", "top", "bottom"],
+  top: ["front", "left", "right"],
+  bottom: ["front", "left", "right"],
+};
+
+/** Unit direction from orbit-target to camera position for each axis view. */
+const VIEW_AXIS: Record<AxisView, THREE.Vector3> = {
+  front: new THREE.Vector3(0, 0, 1),
+  back: new THREE.Vector3(0, 0, -1),
+  left: new THREE.Vector3(-1, 0, 0),
+  right: new THREE.Vector3(1, 0, 0),
+  top: new THREE.Vector3(0, 1, 0),
+  bottom: new THREE.Vector3(0, -1, 0),
+};
+
+/**
+ * All shortest paths from `from` to `to` in the view adjacency graph,
+ * returned as the sequence of intermediates between them (excluding both
+ * endpoints). `[[]]` means direct adjacency (no intermediate); the empty
+ * outer array would mean unreachable (cannot happen in this graph).
+ */
+function shortestIntermediates(from: AxisView, to: AxisView): AxisView[][] {
+  if (from === to) return [[]];
+  if (ADJACENCY[from].includes(to)) return [[]];
+  const result: AxisView[][] = [];
+  for (const m of ADJACENCY[from]) {
+    if (ADJACENCY[m].includes(to)) result.push([m]);
+  }
+  return result;
 }
 
 /**
- * For antipodal axis-pair transitions, force the camera through a specific
- * intermediate view so it sweeps along a clean great circle instead of taking
- * an arbitrary path. All entries here are pairs whose start/via/end are on a
- * single great circle, so each leg is a 90° slerp and the velocity at the
- * waypoint is continuous.
+ * Pick the via-view from candidate intermediates whose axis direction is
+ * closest to the current camera direction (largest dot product). For pole→
+ * back transitions the candidates are equidistant from the pole, so the
+ * camera's current position acts as the deterministic tiebreaker.
  */
-const VIEW_WAYPOINTS: { [from in ViewName]?: { [to in ViewName]?: ViewName } } =
-  {
-    front: { back: "right" },
-    back: { front: "right", bottom: "right", top: "right" },
-    left: { right: "front" },
-    right: { left: "front" },
-    top: { bottom: "front", back: "right" },
-    bottom: { top: "front", back: "right" },
-  };
-
-function getWaypoint(from: ViewName, to: ViewName): ViewName | null {
-  return VIEW_WAYPOINTS[from]?.[to] ?? null;
+function pickVia(
+  candidates: AxisView[][],
+  currentDir: THREE.Vector3,
+): AxisView | null {
+  if (candidates.length === 0 || candidates[0].length === 0) return null;
+  let best: AxisView = candidates[0][0];
+  let bestScore = VIEW_AXIS[best].dot(currentDir);
+  for (let i = 1; i < candidates.length; i++) {
+    const m = candidates[i][0];
+    const score = VIEW_AXIS[m].dot(currentDir);
+    if (score > bestScore) {
+      bestScore = score;
+      best = m;
+    }
+  }
+  return best;
 }
 
 function sampleFromTarget(t: ViewTarget): ArcSample {
@@ -342,7 +379,6 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   }
 
   let animState: AnimState | null = null;
-  let fovAnimState: FovAnimState | null = null;
 
   function setView(targetView: ViewName, bbox?: THREE.Box3): Promise<void> {
     return new Promise<void>((resolve) => {
@@ -351,38 +387,18 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
         finalizeAnim(animState);
         animState = null;
       }
-      // Fit using the FOV the user is targeting — if a FOV animation is in
-      // flight, use its end value so the final frame is correct.
-      const fovForFit = fovAnimState ? fovAnimState.endFov : camera.fov;
+      const fovForFit = camera.fov;
 
-      // The "rotate then frame" split is only useful when the framing scale
-      // actually changes — which is the case for 3D ↔ axis transitions (3D
-      // default frames the whole scene; axis lands close on the selection).
-      // For axis ↔ axis the camera is already close to the selection, so we
-      // do a single-phase rotation around the selection (no zoom-out detour).
-      const involvesPerspective =
-        fromView === "perspective" || targetView === "perspective";
-      const splitFraming = bbox != null && involvesPerspective;
-
-      // Bbox/padding used by the rotation phase (and any waypoint along it):
-      // - split: root-framed (so user sees the scene during the rotation,
-      //   then dollies into the selection in phase 2).
-      // - axis↔axis with selection: selection-framed throughout — the camera
-      //   orbits around the selection at constant radius.
-      // - no selection: root-framed.
-      const rotationBbox = splitFraming ? undefined : bbox;
-      const rotationPadding =
-        bbox && !splitFraming ? FRAME_PADDING : VIEW_PADDING;
-
-      const rotationEnd = computeViewTarget(
+      // Single-phase animation: arc + dolly happen together. When a bbox is
+      // provided, the camera flies directly to the selection-framed target;
+      // otherwise it frames the whole scene.
+      const padding = bbox ? FRAME_PADDING : VIEW_PADDING;
+      const finalTarget = computeViewTarget(
         targetView,
         fovForFit,
-        rotationBbox,
-        rotationPadding,
+        bbox,
+        padding,
       );
-      const finalTarget = splitFraming
-        ? computeViewTarget(targetView, fovForFit, bbox, FRAME_PADDING)
-        : rotationEnd;
 
       const startOffset = camera.position.clone().sub(controls.target);
       const startRadius = Math.max(startOffset.length(), 0.01);
@@ -393,15 +409,25 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
         orbitTarget: controls.target.clone(),
       };
 
-      const waypointName = getWaypoint(fromView, targetView);
-      const via = waypointName
+      // Equator-first shortest-path: at most one intermediate. Skip the
+      // lookup if either endpoint is `perspective` (handled as single-arc)
+      // or the view didn't change.
+      let viaName: AxisView | null = null;
+      if (
+        fromView !== "perspective" &&
+        targetView !== "perspective" &&
+        fromView !== targetView
+      ) {
+        const candidates = shortestIntermediates(fromView, targetView);
+        const currentDir = camera.position
+          .clone()
+          .sub(controls.target)
+          .normalize();
+        viaName = pickVia(candidates, currentDir);
+      }
+      const via = viaName
         ? sampleFromTarget(
-            computeViewTarget(
-              waypointName,
-              fovForFit,
-              rotationBbox,
-              rotationPadding,
-            ),
+            computeViewTarget(viaName, fovForFit, bbox, padding),
           )
         : null;
 
@@ -418,10 +444,8 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
       animState = {
         start,
         via,
-        end: sampleFromTarget(rotationEnd),
-        endTarget: rotationEnd,
-        frameEnd: splitFraming ? sampleFromTarget(finalTarget) : null,
-        frameEndTarget: splitFraming ? finalTarget : null,
+        end: sampleFromTarget(finalTarget),
+        endTarget: finalTarget,
         startTime: performance.now(),
         duration: VIEW_TRANSITION_MS,
         wasDamping,
@@ -431,11 +455,10 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   }
 
   function finalizeAnim(s: AnimState) {
-    const finalTarget = s.frameEndTarget ?? s.endTarget;
-    camera.up.copy(finalTarget.up);
-    camera.position.copy(finalTarget.position);
-    camera.lookAt(finalTarget.orbitTarget);
-    controls.target.copy(finalTarget.orbitTarget);
+    camera.up.copy(s.endTarget.up);
+    camera.position.copy(s.endTarget.position);
+    camera.lookAt(s.endTarget.orbitTarget);
+    controls.target.copy(s.endTarget.orbitTarget);
     controls.enabled = true;
     controls.enableDamping = s.wasDamping;
     s.resolve();
@@ -444,6 +467,8 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   const tmpTarget = new THREE.Vector3();
   const tmpDir = new THREE.Vector3();
   const tmpUp = new THREE.Vector3();
+  const tmpA = new THREE.Vector3();
+  const tmpB = new THREE.Vector3();
 
   function stepAnim() {
     if (!animState) return;
@@ -454,62 +479,33 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
       animState = null;
       return;
     }
-    const tRaw = elapsed / s.duration;
+    const k = easeInOutCubic(elapsed / s.duration);
 
-    let segStart: ArcSample;
-    let segEnd: ArcSample;
-    let segK: number;
+    // Orbit target and up vector animate globally start → end so they don't
+    // restart at the waypoint. For up in particular, a per-leg slerp produces
+    // a visible kick when the first leg has constant up (e.g. BACK→RIGHT) and
+    // the second suddenly starts rotating it (RIGHT→TOP).
+    tmpTarget.copy(s.start.orbitTarget).lerp(s.end.orbitTarget, k);
+    slerpVec(tmpUp, s.start.up, s.end.up, k);
 
-    if (s.frameEnd) {
-      // Split animation: each phase eases independently so both start AND end
-      // with zero velocity. The camera pauses momentarily at the rough-framed
-      // view before dollying into the selection.
-      if (tRaw < 0.5) {
-        const phaseK = easeInOutCubic(tRaw * 2);
-        if (s.via) {
-          if (phaseK < 0.5) {
-            segStart = s.start;
-            segEnd = s.via;
-            segK = phaseK * 2;
-          } else {
-            segStart = s.via;
-            segEnd = s.end;
-            segK = (phaseK - 0.5) * 2;
-          }
-        } else {
-          segStart = s.start;
-          segEnd = s.end;
-          segK = phaseK;
-        }
-      } else {
-        segStart = s.end;
-        segEnd = s.frameEnd;
-        segK = easeInOutCubic((tRaw - 0.5) * 2);
-      }
+    let radius: number;
+    if (s.via) {
+      // Spherical quadratic Bezier (De Casteljau of slerps) through
+      // start.dir, via.dir, end.dir. The curve bulges toward via without
+      // making a hard corner there — fixes the tangent discontinuity that
+      // made BACK→TOP feel harsh.
+      slerpVec(tmpA, s.start.dir, s.via.dir, k);
+      slerpVec(tmpB, s.via.dir, s.end.dir, k);
+      slerpVec(tmpDir, tmpA, tmpB, k);
+      // Scalar quadratic Bezier for radius — matches the position curve's
+      // C1 continuity so dolly speed doesn't pop at the waypoint either.
+      const ra = s.start.radius + (s.via.radius - s.start.radius) * k;
+      const rb = s.via.radius + (s.end.radius - s.via.radius) * k;
+      radius = ra + (rb - ra) * k;
     } else {
-      // No framing split: single eased curve across the whole transition.
-      const k = easeInOutCubic(tRaw);
-      if (s.via) {
-        if (k < 0.5) {
-          segStart = s.start;
-          segEnd = s.via;
-          segK = k * 2;
-        } else {
-          segStart = s.via;
-          segEnd = s.end;
-          segK = (k - 0.5) * 2;
-        }
-      } else {
-        segStart = s.start;
-        segEnd = s.end;
-        segK = k;
-      }
+      slerpVec(tmpDir, s.start.dir, s.end.dir, k);
+      radius = s.start.radius + (s.end.radius - s.start.radius) * k;
     }
-
-    tmpTarget.copy(segStart.orbitTarget).lerp(segEnd.orbitTarget, segK);
-    slerpVec(tmpDir, segStart.dir, segEnd.dir, segK);
-    slerpVec(tmpUp, segStart.up, segEnd.up, segK);
-    const radius = segStart.radius + (segEnd.radius - segStart.radius) * segK;
 
     camera.up.copy(tmpUp);
     camera.position.copy(tmpTarget).addScaledVector(tmpDir, radius);
@@ -532,8 +528,7 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
       const size = new THREE.Vector3();
       bbox.getSize(size);
       const radius = Math.max(size.length() / 2, 0.5);
-      const fovForFit = fovAnimState ? fovAnimState.endFov : camera.fov;
-      const fovRad = (fovForFit * Math.PI) / 180;
+      const fovRad = (camera.fov * Math.PI) / 180;
       const distance = (radius / Math.sin(fovRad / 2)) * FRAME_PADDING;
 
       const currentOffset = camera.position.clone().sub(controls.target);
@@ -562,8 +557,6 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
         via: null,
         end: sampleFromTarget(target),
         endTarget: target,
-        frameEnd: null,
-        frameEndTarget: null,
         startTime: performance.now(),
         duration: FRAME_TRANSITION_MS,
         wasDamping,
@@ -573,41 +566,11 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   }
 
   function setFov(targetFov: number): Promise<void> {
-    return new Promise<void>((resolve) => {
-      if (fovAnimState) {
-        // Snap current FOV animation to its target so the new one starts clean.
-        camera.fov = fovAnimState.endFov;
-        camera.updateProjectionMatrix();
-        fovAnimState.resolve();
-        fovAnimState = null;
-      }
-      if (Math.abs(camera.fov - targetFov) < 0.001) {
-        resolve();
-        return;
-      }
-      fovAnimState = {
-        startFov: camera.fov,
-        endFov: targetFov,
-        startTime: performance.now(),
-        resolve,
-      };
-    });
-  }
-
-  function stepFovAnim() {
-    if (!fovAnimState) return;
-    const s = fovAnimState;
-    const elapsed = performance.now() - s.startTime;
-    if (elapsed >= FOV_TRANSITION_MS) {
-      camera.fov = s.endFov;
+    if (Math.abs(camera.fov - targetFov) >= 0.001) {
+      camera.fov = targetFov;
       camera.updateProjectionMatrix();
-      s.resolve();
-      fovAnimState = null;
-      return;
     }
-    const k = easeInOutCubic(elapsed / FOV_TRANSITION_MS);
-    camera.fov = s.startFov + (s.endFov - s.startFov) * k;
-    camera.updateProjectionMatrix();
+    return Promise.resolve();
   }
 
   const tickCallbacks = new Set<() => void>();
@@ -615,7 +578,6 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   function tick() {
     if (!running) return;
     stepAnim();
-    stepFovAnim();
     controls.update();
     for (const fn of tickCallbacks) fn();
     renderer.render(scene, camera);

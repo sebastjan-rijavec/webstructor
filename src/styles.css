@@ -1,13 +1,35 @@
-:root {
-  --bg: #f3f4f6;
-  --panel: #ffffff;
-  --panel-2: #f8f9fb;
-  --border: #d4d6dc;
-  --text: #1f232a;
-  --text-dim: #6a7180;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --danger: #dc2626;
+:root,
+:root[data-theme="bright"] {
+  /* Bright theme — cream / charcoal / red, per design-guidelines image. */
+  --bg: #efe6d5;
+  --bg-elev: #e8e0d0;
+  --bg-elev-2: #ddd3c0;
+  --fg: #2a2520;
+  --fg-dim: #6a6055;
+  --line: #2a2520;
+  --line-soft: #b8aa92;
+  --accent: #d9532e;
+  --accent-hover: #c84823;
+  --accent-fg: #ffffff;
+  --danger: #c84823;
+  --scene-bg: #ebe4d3;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+:root[data-theme="dark"] {
+  --bg: #1c1814;
+  --bg-elev: #28221c;
+  --bg-elev-2: #342c25;
+  --fg: #e8e0d0;
+  --fg-dim: #9a8e7e;
+  --line: #e8e0d0;
+  --line-soft: #5a5048;
+  --accent: #d9532e;
+  --accent-hover: #ec6840;
+  --accent-fg: #ffffff;
+  --danger: #c84823;
+  --scene-bg: #1f1a14;
 }
 
 * {
@@ -21,10 +43,10 @@ body {
   width: 100%;
   height: 100%;
   background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
-    Arial, sans-serif;
-  font-size: 13px;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
   overflow: hidden;
 }
 
@@ -36,31 +58,32 @@ body {
 }
 
 #sidebar {
-  background: var(--panel);
-  border-right: 1px solid var(--border);
+  background: var(--bg-elev);
+  border-right: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .sidebar-header {
-  padding: 14px 16px 8px;
-  border-bottom: 1px solid var(--border);
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .sidebar-header h1 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .subtitle {
-  margin: 4px 0 0;
-  font-size: 11px;
-  color: var(--text-dim);
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: var(--fg-dim);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.16em;
 }
 
 .library-list {
@@ -72,20 +95,24 @@ body {
 }
 
 .library-item {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
   border-radius: 6px;
   padding: 10px 6px;
   text-align: center;
   cursor: pointer;
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg);
   user-select: none;
   transition: background 0.15s, border-color 0.15s, transform 0.05s;
 }
 
 .library-item:hover {
-  background: #eef0f4;
-  border-color: #b8bcc4;
+  background: var(--bg-elev-2);
+  border-color: var(--line);
 }
 
 .library-item:active {
@@ -96,7 +123,7 @@ body {
   display: block;
   font-size: 18px;
   margin-bottom: 4px;
-  color: var(--text-dim);
+  color: var(--fg-dim);
 }
 
 #viewport-wrap {
@@ -106,62 +133,41 @@ body {
   overflow: hidden;
 }
 
-#toolbar,
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 8px 12px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-  z-index: 2;
-}
-
-.toolbar-label {
-  font-size: 11px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-right: 2px;
-}
-
-.toolbar-group {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.toolbar-group.right {
-  margin-left: auto;
-}
-
 button {
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 5px 10px;
-  font-size: 12px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
-  font-family: inherit;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease,
+    transform 0.05s ease;
 }
 
-button:hover {
-  background: #eef0f4;
-  border-color: #b8bcc4;
+button:hover:not(:disabled) {
+  background: var(--bg-elev-2);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 button.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--accent-fg);
 }
 
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
-  font-weight: 600;
+  color: var(--accent-fg);
+  font-weight: 700;
 }
 
 button.primary:hover {
@@ -169,18 +175,6 @@ button.primary:hover {
   border-color: var(--accent-hover);
 }
 
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.toggle input {
-  margin: 0;
-  cursor: pointer;
-}
 
 #viewport {
   flex: 1;
@@ -194,12 +188,15 @@ button.primary:hover {
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.85);
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  padding: 5px 12px;
-  border-radius: 4px;
-  font-size: 11px;
+  background: color-mix(in srgb, var(--bg-elev) 85%, transparent);
+  color: var(--fg-dim);
+  border: 1px solid var(--line-soft);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   pointer-events: none;
   white-space: nowrap;
 }
@@ -212,10 +209,6 @@ button.primary:hover {
    setHistoryState so external state changes can sync the rail visually. */
 
 .right-rail {
-  --rail-bg: #e8e0d0;
-  --rail-fg: #2a2520;
-  --rail-line: #2a2520;
-  --rail-accent: #d9532e;
   --rail-width: 280px;
 
   position: absolute;
@@ -226,8 +219,8 @@ button.primary:hover {
   flex-direction: column;
   align-items: stretch;
   gap: 12px;
-  color: var(--rail-fg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--fg);
+  font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -237,12 +230,7 @@ button.primary:hover {
 }
 
 .camera-overlay {
-  /* Camera widget is one section among many on the rail. The widget's
-     palette is shared with the rail; sizing is local to the radial layout. */
-  --cam-bg: var(--rail-bg);
-  --cam-fg: var(--rail-fg);
-  --cam-line: var(--rail-line);
-  --cam-accent: var(--rail-accent);
+  /* Local sizing for the radial layout; colors flow from the global tokens. */
   --cam-size: var(--rail-width);
   --cam-outer-radius: 110px;
   --cam-inner-radius: 50px;
@@ -255,20 +243,35 @@ button.primary:hover {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  color: var(--cam-fg);
+  color: var(--fg);
+}
+
+.camera-overlay-cube {
+  width: 56px;
+  height: 56px;
+  margin-top: 2px;
+  color: var(--fg);
+  pointer-events: none;
+}
+
+.camera-overlay-cube svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .camera-overlay-header {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-top: 2px;
 }
 
 .camera-overlay-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--cam-accent);
+  background: var(--accent);
 }
 
 .camera-overlay-view-name {
@@ -296,13 +299,13 @@ button.primary:hover {
 .camera-overlay-outer-ring {
   width: calc(var(--cam-outer-radius) * 2);
   height: calc(var(--cam-outer-radius) * 2);
-  border: 1px solid var(--cam-line);
+  border: 1px solid var(--line);
 }
 
 .camera-overlay-inner-ring {
   width: calc(var(--cam-inner-radius) * 2);
   height: calc(var(--cam-inner-radius) * 2);
-  border: 1px dashed var(--cam-line);
+  border: 1px dashed var(--line);
   opacity: 0.55;
 }
 
@@ -313,7 +316,7 @@ button.primary:hover {
   transform: translate(-50%, -50%);
   font-size: 10px;
   letter-spacing: 0.16em;
-  color: var(--cam-fg);
+  color: var(--fg);
   opacity: 0.6;
   pointer-events: none;
 }
@@ -323,9 +326,9 @@ button.primary:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--cam-bg);
-  color: var(--cam-fg);
-  border: 1px solid var(--cam-line);
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--line);
   border-radius: 50%;
   font-family: inherit;
   font-size: 10px;
@@ -338,7 +341,7 @@ button.primary:hover {
 }
 
 .cam-btn:hover {
-  background: #d8cdb8;
+  background: var(--bg-elev-2);
 }
 
 .cam-btn:active {
@@ -364,9 +367,9 @@ button.primary:hover {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: var(--cam-accent);
-  color: #ffffff;
-  border-color: var(--cam-accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
   font-weight: 700;
 }
 
@@ -402,29 +405,52 @@ button.primary:hover {
    3D button already styles as red; .active gives the same treatment to the
    currently selected outer/inner button. */
 .cam-btn.active:not(.cam-center) {
-  background: var(--cam-accent);
-  border-color: var(--cam-accent);
-  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
 }
 
 /* When a non-center view is active, the center 3D button reverts to the
-   neutral cream look so it doesn't read as also-active. */
+   neutral look so it doesn't read as also-active. */
 .camera-overlay-ring:has(.cam-outer.active, .cam-inner.active)
   .cam-btn.cam-center {
-  background: var(--cam-bg);
-  color: var(--cam-fg);
-  border-color: var(--cam-line);
+  background: var(--bg-elev);
+  color: var(--fg);
+  border-color: var(--line);
   font-weight: 400;
+}
+
+.camera-overlay-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: -4px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.camera-overlay-caption strong {
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+}
+
+.camera-overlay-caption span {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--fg-dim);
+  opacity: 0.85;
 }
 
 .camera-overlay-frame {
   margin-top: 4px;
-  background: var(--cam-bg);
-  color: var(--cam-fg);
-  border: 1px solid var(--cam-line);
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--line);
   border-radius: 999px;
   padding: 6px 18px;
-  font-family: inherit;
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -434,7 +460,7 @@ button.primary:hover {
 }
 
 .camera-overlay-frame:hover {
-  background: #d8cdb8;
+  background: var(--bg-elev-2);
 }
 
 .camera-overlay-frame:active {
@@ -458,9 +484,9 @@ button.primary:hover {
 
 .rail-btn {
   flex: 1;
-  background: var(--rail-bg);
-  color: var(--rail-fg);
-  border: 1px solid var(--rail-line);
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--line);
   border-radius: 999px;
   padding: 7px 10px;
   font-family: inherit;
@@ -473,7 +499,7 @@ button.primary:hover {
 }
 
 .rail-btn:hover:not(:disabled) {
-  background: #d8cdb8;
+  background: var(--bg-elev-2);
 }
 
 .rail-btn:active:not(:disabled) {
@@ -487,9 +513,9 @@ button.primary:hover {
 
 /* Segmented active state for the mode row (Move / Rotate / Scale). */
 .rail-mode-btn.active {
-  background: var(--rail-accent);
-  border-color: var(--rail-accent);
-  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
 }
 
 .rail-toggle {
@@ -497,8 +523,8 @@ button.primary:hover {
   align-items: center;
   gap: 8px;
   padding: 7px 14px;
-  background: var(--rail-bg);
-  border: 1px solid var(--rail-line);
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
   border-radius: 999px;
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -512,5 +538,39 @@ button.primary:hover {
 .rail-toggle input {
   margin: 0;
   cursor: pointer;
-  accent-color: var(--rail-accent);
+  accent-color: var(--accent);
+}
+
+/* FOV row — label + 6 compact pills. Wraps to a second line when the rail
+   gets too narrow (defensive against future layout shrink). */
+.right-rail-section-fov {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.right-rail-fov-label {
+  font-size: 10px;
+  color: var(--fg-dim);
+  letter-spacing: 0.16em;
+  margin-right: 2px;
+}
+
+.rail-fov-btn {
+  flex: 1 1 auto;
+  min-width: 36px;
+  padding: 6px 6px;
+}
+
+/* Primary call-to-action — Export GLB. Same red as the central 3D button
+   so it reads as the most important action in the rail. */
+.rail-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+
+.rail-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }

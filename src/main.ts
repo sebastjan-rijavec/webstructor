@@ -1,6 +1,6 @@
 import "./styles.css";
 import * as THREE from "three";
-import { createViewport, type ViewName } from "./scene/viewport";
+import { createViewport } from "./scene/viewport";
 import { listElements, instantiate, type ElementDefinition } from "./library";
 import { renderSidebar } from "./ui/sidebar";
 import { createRightRail } from "./ui/right-rail";
@@ -21,6 +21,31 @@ const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const viewport = createViewport(canvas);
 const selection = new Selection(viewport.helpers);
 const history = new History();
+
+// --- Theme ----------------------------------------------------------------
+type ThemeName = "bright" | "dark";
+let currentTheme: ThemeName =
+  (localStorage.getItem("webstructor-theme") as ThemeName | null) ?? "bright";
+
+function applyTheme(theme: ThemeName): void {
+  currentTheme = theme;
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem("webstructor-theme", theme);
+  // 3D scene background tracks the chrome via the --scene-bg token so the
+  // canvas reads as part of the themed surface rather than fighting it.
+  const sceneBg = getComputedStyle(document.documentElement)
+    .getPropertyValue("--scene-bg")
+    .trim();
+  if (sceneBg) viewport.scene.background = new THREE.Color(sceneBg);
+}
+
+function toggleTheme(): void {
+  const next: ThemeName = currentTheme === "bright" ? "dark" : "bright";
+  applyTheme(next);
+  rail.setTheme(next);
+}
+
+applyTheme(currentTheme);
 
 viewport.onTick(() => selection.updateHelpers());
 
@@ -77,30 +102,22 @@ canvas.addEventListener("pointerup", (e) => {
   }
 });
 
-// --- Toolbar ---------------------------------------------------------------
-const toolbar = document.getElementById("toolbar")!;
-const toolbar2 = document.getElementById("toolbar2")!;
-const modeButtons = toolbar.querySelectorAll<HTMLButtonElement>(".mode-btn");
-const viewButtons = toolbar.querySelectorAll<HTMLButtonElement>(".view-btn");
-const fovButtons = toolbar2.querySelectorAll<HTMLButtonElement>(".fov-btn");
-const snapToggle = document.getElementById("snap-toggle") as HTMLInputElement;
-const undoBtn = toolbar.querySelector<HTMLButtonElement>('[data-action="undo"]')!;
-const redoBtn = toolbar.querySelector<HTMLButtonElement>('[data-action="redo"]')!;
+// --- Editor actions -------------------------------------------------------
+// The right rail owns the full UI surface; main.ts holds the bare action
+// functions and routes the rail's callbacks back into the editor state.
 
-toolbar2.addEventListener("click", async (e) => {
-  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-fov]");
-  if (!btn) return;
-  const fov = parseFloat(btn.dataset.fov!);
-  fovButtons.forEach((b) => b.classList.toggle("active", b === btn));
-  await viewport.setFov(fov);
-});
-
-function setMode(mode: "translate" | "rotate" | "scale") {
+function setMode(mode: "translate" | "rotate" | "scale"): void {
   transform.setMode(mode);
-  modeButtons.forEach((b) => {
-    b.classList.toggle("active", b.dataset.action === mode);
-  });
   rail.setMode(mode);
+}
+
+async function exportGlb(): Promise<void> {
+  try {
+    await exportScene(viewport.root, { binary: true });
+  } catch (err) {
+    console.error("Export failed:", err);
+    alert(`Export failed: ${(err as Error).message}`);
+  }
 }
 
 /** Bbox of the selection — or undefined if nothing selected. */
@@ -117,20 +134,20 @@ async function frameTarget() {
 }
 
 // --- Right rail (Mighty UI) -----------------------------------------------
-// Floating right-side control panel: camera widget + FRAME, transform mode,
-// snap, edit ops, history. Lives alongside the legacy top toolbar — both
-// drive the same actions. The legacy `setMode`, the snap toggle, and the
-// history.onChange handlers below are extended to also call rail.set*()
-// so the rail's visual state stays in sync.
+// Sole UI surface. Drives transform mode, snap, edit ops, history, FOV,
+// theme, and export — all the things the legacy top toolbar used to own.
 const rail = createRightRail({
   container: document.getElementById("viewport-wrap")!,
   viewport,
   getSelectionBbox: selectionBbox,
+  initialTheme: currentTheme,
+  initialFov: viewport.camera.fov,
   onFrame: frameTarget,
   onSetMode: (mode) => setMode(mode),
-  onToggleSnap: (snap) => {
-    snapToggle.checked = snap;
-    transform.setSnap(snap);
+  onToggleSnap: (snap) => transform.setSnap(snap),
+  onToggleTheme: toggleTheme,
+  onSetFov: (fov) => {
+    void viewport.setFov(fov);
   },
   onUndo: () => history.undo(),
   onRedo: () => history.redo(),
@@ -146,74 +163,17 @@ const rail = createRightRail({
     if (selection.list.length)
       history.execute(deleteCommand(viewport.root, selection.list, selection));
   },
+  onExport: () => {
+    void exportGlb();
+  },
 });
 
-// Initial sync — both UIs start in the same state.
+// Initial mode sync (the rail constructor sets the rest from initial* opts).
 rail.setMode("translate");
-rail.setSnap(snapToggle.checked);
-
-toolbar.addEventListener("click", async (e) => {
-  const viewBtn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-view]");
-  if (viewBtn) {
-    const v = viewBtn.dataset.view as ViewName;
-    if (v === viewport.view) return;
-    viewButtons.forEach((b) => b.classList.toggle("active", b === viewBtn));
-    await viewport.setView(v, selectionBbox());
-    return;
-  }
-  const target = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-action]");
-  if (!target) return;
-  const action = target.dataset.action;
-  switch (action) {
-    case "undo":
-      history.undo();
-      break;
-    case "redo":
-      history.redo();
-      break;
-    case "translate":
-    case "rotate":
-    case "scale":
-      setMode(action);
-      break;
-    case "duplicate":
-      if (selection.list.length)
-        history.execute(duplicateCommand(viewport.root, selection.list, selection));
-      break;
-    case "delete":
-      if (selection.list.length)
-        history.execute(deleteCommand(viewport.root, selection.list, selection));
-      break;
-    case "group":
-      if (selection.list.length >= 2)
-        history.execute(groupCommand(viewport.root, selection.list, selection));
-      break;
-    case "frame":
-      await frameTarget();
-      break;
-    case "export":
-      try {
-        await exportScene(viewport.root, { binary: true });
-      } catch (err) {
-        console.error("Export failed:", err);
-        alert(`Export failed: ${(err as Error).message}`);
-      }
-      break;
-  }
-});
-
-snapToggle.addEventListener("change", () => {
-  transform.setSnap(snapToggle.checked);
-  rail.setSnap(snapToggle.checked);
-});
 
 history.onChange((canUndo, canRedo) => {
-  undoBtn.disabled = !canUndo;
-  redoBtn.disabled = !canRedo;
   rail.setHistoryState(canUndo, canRedo);
 });
-undoBtn.disabled = true;
-redoBtn.disabled = true;
 
 // --- Keyboard --------------------------------------------------------------
 window.addEventListener("keydown", (e) => {
@@ -266,8 +226,7 @@ window.addEventListener("keydown", (e) => {
       selection.clear();
       break;
     case "x":
-      snapToggle.checked = transform.toggleSnap();
-      rail.setSnap(snapToggle.checked);
+      rail.setSnap(transform.toggleSnap());
       break;
     case "f":
       frameTarget();

@@ -1,5 +1,6 @@
 import type * as THREE from "three";
 import type { Viewport, ViewName } from "../scene/viewport";
+import { cubeIconSvg } from "./cube-icon";
 
 interface CameraOverlayOptions {
   container: HTMLElement;
@@ -37,6 +38,7 @@ export function createCameraOverlay(
   const el = document.createElement("div");
   el.className = "camera-overlay";
   el.innerHTML = `
+    <div class="camera-overlay-cube"></div>
     <div class="camera-overlay-header">
       <span class="camera-overlay-dot"></span>
       VIEW <strong class="camera-overlay-view-name">3D</strong>
@@ -53,9 +55,15 @@ export function createCameraOverlay(
       <button class="cam-btn cam-inner cam-top" data-view="top">TOP</button>
       <button class="cam-btn cam-center" data-view="perspective">3D</button>
     </div>
+    <div class="camera-overlay-caption">
+      <strong>ORBIT STACK</strong>
+      <span>Two rings split the motion: outer = yaw, inner = pitch.</span>
+    </div>
     <button class="camera-overlay-frame" data-action="frame">FRAME</button>
   `;
   container.appendChild(el);
+
+  const cubeEl = el.querySelector<HTMLElement>(".camera-overlay-cube")!;
 
   const frameBtn = el.querySelector<HTMLButtonElement>(
     ".camera-overlay-frame",
@@ -72,6 +80,7 @@ export function createCameraOverlay(
   function applyActive(view: ViewName): void {
     currentView = view;
     viewNameEl.textContent = LABEL[view];
+    cubeEl.innerHTML = cubeIconSvg(view);
     buttons.forEach((b) => {
       b.classList.toggle("active", b.dataset.view === view);
     });

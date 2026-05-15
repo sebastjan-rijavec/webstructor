@@ -3,19 +3,27 @@ import type { Viewport } from "../scene/viewport";
 import { createCameraOverlay } from "./camera-overlay";
 
 export type ToolMode = "translate" | "rotate" | "scale";
+export type ThemeName = "bright" | "dark";
+
+const FOV_PRESETS = [10, 25, 40, 50, 75, 100] as const;
 
 interface RightRailOptions {
   container: HTMLElement;
   viewport: Viewport;
   getSelectionBbox: () => THREE.Box3 | undefined;
+  initialTheme: ThemeName;
+  initialFov: number;
   onFrame: () => void;
   onSetMode: (mode: ToolMode) => void;
   onToggleSnap: (snap: boolean) => void;
+  onToggleTheme: () => void;
+  onSetFov: (fov: number) => void;
   onUndo: () => void;
   onRedo: () => void;
   onDuplicate: () => void;
   onGroup: () => void;
   onDelete: () => void;
+  onExport: () => void;
 }
 
 interface RightRailHandle {
@@ -23,6 +31,10 @@ interface RightRailHandle {
   setMode: (mode: ToolMode) => void;
   /** Sync the snap toggle. */
   setSnap: (snap: boolean) => void;
+  /** Update the theme button label to point at the *opposite* theme. */
+  setTheme: (theme: ThemeName) => void;
+  /** Sync the FOV pills with the live camera FOV. */
+  setFov: (fov: number) => void;
   /** Enable/disable Undo and Redo according to history availability. */
   setHistoryState: (canUndo: boolean, canRedo: boolean) => void;
   dispose: () => void;
@@ -39,14 +51,19 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     container,
     viewport,
     getSelectionBbox,
+    initialTheme,
+    initialFov,
     onFrame,
     onSetMode,
     onToggleSnap,
+    onToggleTheme,
+    onSetFov,
     onUndo,
     onRedo,
     onDuplicate,
     onGroup,
     onDelete,
+    onExport,
   } = opts;
 
   const el = document.createElement("div");
@@ -85,6 +102,18 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
       <button class="rail-btn" data-action="undo">Undo</button>
       <button class="rail-btn" data-action="redo">Redo</button>
     </div>
+    <div class="right-rail-section right-rail-section-fov" data-section="fov">
+      <span class="right-rail-fov-label">FOV</span>
+      ${FOV_PRESETS.map(
+        (f) => `<button class="rail-btn rail-fov-btn" data-fov="${f}">${f}°</button>`,
+      ).join("")}
+    </div>
+    <div class="right-rail-section" data-section="export">
+      <button class="rail-btn rail-btn-primary" data-action="export">Export GLB</button>
+    </div>
+    <div class="right-rail-section" data-section="theme">
+      <button class="rail-btn rail-theme-btn" data-action="theme">Dark</button>
+    </div>
   `;
   el.appendChild(sectionsEl);
 
@@ -96,6 +125,10 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     sectionsEl.querySelector<HTMLButtonElement>('[data-action="undo"]')!;
   const redoBtn =
     sectionsEl.querySelector<HTMLButtonElement>('[data-action="redo"]')!;
+  const themeBtn =
+    sectionsEl.querySelector<HTMLButtonElement>('[data-action="theme"]')!;
+  const fovButtons =
+    sectionsEl.querySelectorAll<HTMLButtonElement>(".rail-fov-btn");
 
   const onModeClick = (e: Event): void => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
@@ -127,7 +160,24 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
       case "redo":
         onRedo();
         break;
+      case "theme":
+        onToggleTheme();
+        break;
+      case "export":
+        onExport();
+        break;
     }
+  };
+
+  const onFovClick = (e: Event): void => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+      ".rail-fov-btn",
+    );
+    if (!btn) return;
+    const fov = Number(btn.dataset.fov);
+    if (!Number.isFinite(fov)) return;
+    setFov(fov);
+    onSetFov(fov);
   };
 
   const onSnapChange = (): void => {
@@ -136,6 +186,7 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
 
   sectionsEl.addEventListener("click", onModeClick);
   sectionsEl.addEventListener("click", onActionClick);
+  sectionsEl.addEventListener("click", onFovClick);
   snapInput.addEventListener("change", onSnapChange);
 
   function setMode(mode: ToolMode): void {
@@ -153,16 +204,33 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     redoBtn.disabled = !canRedo;
   }
 
+  function setTheme(theme: ThemeName): void {
+    // Button label points at the *destination* theme — the one that would
+    // become active if the user clicks now.
+    themeBtn.textContent = theme === "bright" ? "Dark" : "Bright";
+  }
+
+  function setFov(fov: number): void {
+    fovButtons.forEach((b) => {
+      b.classList.toggle("active", Number(b.dataset.fov) === fov);
+    });
+  }
+
   // Initial state — disable history buttons until history.onChange fires.
   setHistoryState(false, false);
+  setTheme(initialTheme);
+  setFov(initialFov);
 
   return {
     setMode,
     setSnap,
+    setTheme,
+    setFov,
     setHistoryState,
     dispose: () => {
       sectionsEl.removeEventListener("click", onModeClick);
       sectionsEl.removeEventListener("click", onActionClick);
+      sectionsEl.removeEventListener("click", onFovClick);
       snapInput.removeEventListener("change", onSnapChange);
       cameraHandle.dispose();
       el.remove();

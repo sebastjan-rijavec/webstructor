@@ -20,6 +20,12 @@ export interface Viewport {
   root: THREE.Group;
   /** Helpers (grid, axes, selection outlines) that should NOT be exported. */
   helpers: THREE.Group;
+  /** Set the floor grid's opacity (0..1). Used by the theme system to
+   * tone the grid down on dark backgrounds where the default reads as
+   * over-bright. */
+  setGridOpacity: (opacity: number) => void;
+  /** Show/hide the floor grid entirely (independent of opacity). */
+  setGridVisible: (visible: boolean) => void;
   readonly view: ViewName;
   /** Switch to a named view with an ease-in-out animation along an arc.
    * If `bbox` is provided, the camera fits to that bbox at the end of the
@@ -260,9 +266,18 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   const helpers = new THREE.Group();
   helpers.name = "__helpers";
   const grid = new THREE.GridHelper(20, 20, 0xa3a8b2, 0xc8ccd4);
-  (grid.material as THREE.Material).transparent = true;
-  (grid.material as THREE.Material).opacity = 0.85;
+  const gridMaterial = grid.material as THREE.Material;
+  gridMaterial.transparent = true;
+  gridMaterial.opacity = 0.85;
   helpers.add(grid);
+
+  function setGridOpacity(opacity: number): void {
+    gridMaterial.opacity = opacity;
+  }
+
+  function setGridVisible(visible: boolean): void {
+    grid.visible = visible;
+  }
   const axes = new THREE.AxesHelper(0.5);
   helpers.add(axes);
 
@@ -641,6 +656,8 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
     controls,
     root,
     helpers,
+    setGridOpacity,
+    setGridVisible,
     get view() {
       return view;
     },

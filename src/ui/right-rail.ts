@@ -24,6 +24,8 @@ interface RightRailOptions {
   onGroup: () => void;
   onDelete: () => void;
   onExport: () => void;
+  onSaveSession: () => void;
+  onOpenSession: () => void;
 }
 
 interface RightRailHandle {
@@ -73,6 +75,8 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     onGroup,
     onDelete,
     onExport,
+    onSaveSession,
+    onOpenSession,
   } = opts;
 
   const el = document.createElement("div");
@@ -118,6 +122,12 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
       <div class="right-rail-row">
         <button class="rail-btn rail-theme-btn" data-action="theme">Dark</button>
         <button class="rail-btn rail-grid-btn" data-action="grid">Hide Grid</button>
+      </div>
+    </div>
+    <div class="right-rail-group">
+      <div class="right-rail-row">
+        <button class="rail-btn" data-action="save-session">Save</button>
+        <button class="rail-btn" data-action="open-session">Open</button>
       </div>
     </div>
     <div class="right-rail-group">
@@ -176,6 +186,12 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
         break;
       case "export":
         onExport();
+        break;
+      case "save-session":
+        onSaveSession();
+        break;
+      case "open-session":
+        onOpenSession();
         break;
     }
   };

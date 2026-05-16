@@ -28,6 +28,7 @@ import {
   startAutosave,
 } from "./persistence/autosave";
 import { openSaveDialog, openOpenDialog } from "./ui/sessions-modal";
+import { showToast } from "./ui/toast";
 
 const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const viewport = createViewport(canvas);
@@ -253,9 +254,16 @@ const rail = createRightRail({
   onOpenSession: openOpen,
 });
 
-// Autosave to localStorage every 60s. Independent of the manual file-based
-// save flow above.
-startAutosave(viewport.root);
+// Autosave to localStorage every 60s. The displayed session name on the
+// toast mirrors the last manual save when there is one, so the message
+// reads as "<your session name> autosaved" rather than the generic
+// "Autosave".
+startAutosave(viewport.root, {
+  getMeta: () => lastSavedMeta ?? { name: "", sessionName: "Autosave" },
+  onSaved: (snapshot) => {
+    showToast(`${snapshot.meta.sessionName} autosaved`);
+  },
+});
 
 // Initial mode sync (the rail constructor sets the rest from initial* opts).
 rail.setMode("translate");

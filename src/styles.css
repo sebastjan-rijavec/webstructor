@@ -220,6 +220,33 @@ button.primary:hover {
   z-index: 4;
 }
 
+/* --- Toast (autosave notification) -------------------------------------- */
+
+#toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 8px 16px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#toast.toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* --- Modal (sessions save/open, issue #24) ------------------------------ */
 
 .modal-backdrop {

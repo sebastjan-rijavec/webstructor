@@ -220,6 +220,226 @@ button.primary:hover {
   z-index: 4;
 }
 
+/* --- Toast (autosave notification) -------------------------------------- */
+
+#toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 8px 16px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#toast.toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* --- Modal (sessions save/open, issue #24) ------------------------------ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--fg) 35%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  font-family: var(--font-mono);
+}
+
+.modal-card {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-width: 320px;
+  max-width: 480px;
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--fg) 30%, transparent);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.modal-close {
+  background: transparent;
+  color: var(--fg);
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-form,
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.modal-field input {
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.modal-field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.modal-section-label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.modal-file {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--bg-elev);
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.modal-file input[type="file"] {
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.modal-autosave-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+}
+
+.modal-autosave-row strong {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.modal-autosave-date {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--fg-dim);
+}
+
+.modal-autosave-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.modal-btn {
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.modal-btn:hover:not(:disabled) {
+  background: var(--bg-elev-2);
+}
+
+.modal-btn-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.modal-btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.modal-btn-ghost {
+  background: transparent;
+  border-color: var(--line-soft);
+  color: var(--fg-dim);
+}
+
+.modal-error {
+  margin: 0;
+  font-size: 10px;
+  color: var(--accent);
+  min-height: 12px;
+}
+
 /* Download GLB — primary action at the bottom of the rail. Round button
    with a wrapped label, centered in its rail slot. */
 .rail-download-btn {

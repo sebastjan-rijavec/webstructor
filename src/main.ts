@@ -16,6 +16,19 @@ import {
   transformCommand,
 } from "./editing/commands";
 import { exportScene } from "./export/gltf";
+import {
+  captureScene,
+  restoreScene,
+  type SceneSnapshot,
+  type SceneSnapshotMeta,
+} from "./persistence/scene-io";
+import {
+  readAutosave,
+  clearAutosave,
+  startAutosave,
+} from "./persistence/autosave";
+import { openSaveDialog, openOpenDialog } from "./ui/sessions-modal";
+import { showToast } from "./ui/toast";
 
 const canvas = document.getElementById("viewport") as HTMLCanvasElement;
 const viewport = createViewport(canvas);
@@ -129,6 +142,54 @@ async function exportGlb(): Promise<void> {
   }
 }
 
+// --- Session save / restore (issue #24) -----------------------------------
+// Manual saves trigger a .webstructor.json file download (portable). The
+// autosave slot in localStorage is a separate recovery mechanism — see
+// src/persistence/autosave.ts.
+
+let lastSavedMeta: { name: string; sessionName: string } | null = null;
+
+function downloadSnapshot(snapshot: SceneSnapshot): void {
+  const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const safe = snapshot.meta.sessionName.replace(/[^a-z0-9-_]+/gi, "_") || "scene";
+  a.href = url;
+  a.download = `${safe}.webstructor.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function openSave(): void {
+  openSaveDialog({
+    initialName: lastSavedMeta?.name ?? "",
+    initialSessionName: lastSavedMeta?.sessionName ?? "",
+    onSave(meta: SceneSnapshotMeta) {
+      const snapshot = captureScene(viewport.root, meta);
+      downloadSnapshot(snapshot);
+      lastSavedMeta = { name: meta.name, sessionName: meta.sessionName };
+    },
+  });
+}
+
+async function applySnapshot(snapshot: SceneSnapshot): Promise<void> {
+  selection.clear();
+  history.clear();
+  await restoreScene(viewport.root, snapshot);
+}
+
+function openOpen(): void {
+  openOpenDialog({
+    autosave: readAutosave(),
+    onRestore: (snapshot) => applySnapshot(snapshot),
+    onDeleteAutosave: clearAutosave,
+  });
+}
+
 /** Bbox of the selection — or undefined if nothing selected. */
 function selectionBbox(): THREE.Box3 | undefined {
   if (selection.list.length === 0) return undefined;
@@ -188,6 +249,19 @@ const rail = createRightRail({
   },
   onExport: () => {
     void exportGlb();
+  },
+  onSaveSession: openSave,
+  onOpenSession: openOpen,
+});
+
+// Autosave to localStorage every 60s. The displayed session name on the
+// toast mirrors the last manual save when there is one, so the message
+// reads as "<your session name> autosaved" rather than the generic
+// "Autosave".
+startAutosave(viewport.root, {
+  getMeta: () => lastSavedMeta ?? { name: "", sessionName: "Autosave" },
+  onSaved: (snapshot) => {
+    showToast(`${snapshot.meta.sessionName} autosaved`);
   },
 });
 

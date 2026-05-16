@@ -22,6 +22,12 @@ const viewport = createViewport(canvas);
 const selection = new Selection(viewport.helpers);
 const history = new History();
 
+// --- Version display ------------------------------------------------------
+// Top-center label showing the build's package.json version. __APP_VERSION__
+// is injected by Vite (see vite.config.ts + src/types/globals.d.ts).
+const versionDisplay = document.getElementById("version-display")!;
+versionDisplay.textContent = `v${__APP_VERSION__}`;
+
 // --- Theme ----------------------------------------------------------------
 type ThemeName = "bright" | "dark";
 let currentTheme: ThemeName =
@@ -33,10 +39,13 @@ function applyTheme(theme: ThemeName): void {
   localStorage.setItem("webstructor-theme", theme);
   // 3D scene background tracks the chrome via the --scene-bg token so the
   // canvas reads as part of the themed surface rather than fighting it.
-  const sceneBg = getComputedStyle(document.documentElement)
-    .getPropertyValue("--scene-bg")
-    .trim();
+  const root = getComputedStyle(document.documentElement);
+  const sceneBg = root.getPropertyValue("--scene-bg").trim();
   if (sceneBg) viewport.scene.background = new THREE.Color(sceneBg);
+  // Grid is bright on cream but reads as over-bright against the dark
+  // scene background — tone it via --grid-opacity per theme.
+  const gridOpacity = parseFloat(root.getPropertyValue("--grid-opacity"));
+  if (Number.isFinite(gridOpacity)) viewport.setGridOpacity(gridOpacity);
 }
 
 function toggleTheme(): void {
@@ -133,19 +142,35 @@ async function frameTarget() {
   await viewport.frame(bbox);
 }
 
+// --- Grid visibility ------------------------------------------------------
+let gridVisible: boolean =
+  localStorage.getItem("webstructor-grid-visible") !== "false";
+viewport.setGridVisible(gridVisible);
+
+function toggleGrid(): void {
+  gridVisible = !gridVisible;
+  viewport.setGridVisible(gridVisible);
+  localStorage.setItem("webstructor-grid-visible", String(gridVisible));
+  rail.setGridVisible(gridVisible);
+}
+
 // --- Right rail (Mighty UI) -----------------------------------------------
 // Sole UI surface. Drives transform mode, snap, edit ops, history, FOV,
-// theme, and export — all the things the legacy top toolbar used to own.
+// theme, and grid toggle. Export GLB lives separately as a bottom-center
+// floating button (see #export-button) — issue #22 wanted it more prominent
+// than a rail entry.
 const rail = createRightRail({
   container: document.getElementById("viewport-wrap")!,
   viewport,
   getSelectionBbox: selectionBbox,
   initialTheme: currentTheme,
   initialFov: viewport.camera.fov,
+  initialGridVisible: gridVisible,
   onFrame: frameTarget,
   onSetMode: (mode) => setMode(mode),
   onToggleSnap: (snap) => transform.setSnap(snap),
   onToggleTheme: toggleTheme,
+  onToggleGrid: toggleGrid,
   onSetFov: (fov) => {
     void viewport.setFov(fov);
   },
@@ -163,13 +188,18 @@ const rail = createRightRail({
     if (selection.list.length)
       history.execute(deleteCommand(viewport.root, selection.list, selection));
   },
-  onExport: () => {
-    void exportGlb();
-  },
 });
 
 // Initial mode sync (the rail constructor sets the rest from initial* opts).
 rail.setMode("translate");
+
+// Floating Export GLB button — bottom-center of the viewport, primary action.
+const exportButton = document.getElementById(
+  "export-button",
+) as HTMLButtonElement;
+exportButton.addEventListener("click", () => {
+  void exportGlb();
+});
 
 history.onChange((canUndo, canRedo) => {
   rail.setHistoryState(canUndo, canRedo);

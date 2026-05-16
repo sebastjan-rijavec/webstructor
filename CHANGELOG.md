@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.1](https://github.com/sebastjan-rijavec/webstructor/compare/v0.2.0...v0.2.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* **editing:** duplicate copies stay at original position ([aa13deb](https://github.com/sebastjan-rijavec/webstructor/commit/aa13deb78d52c506f602d0a8e6e019735e0d95c5))
+* **scene:** softer shadow penumbra via wider PCF kernel ([f764675](https://github.com/sebastjan-rijavec/webstructor/commit/f7646750b8e39a89e21668f3b7c82077377928ae))
+
+
+### Refactor
+
+* **ui:** apply PR review feedback ([#27](https://github.com/sebastjan-rijavec/webstructor/issues/27), [#28](https://github.com/sebastjan-rijavec/webstructor/issues/28)) ([b5614a8](https://github.com/sebastjan-rijavec/webstructor/commit/b5614a8b9295e2a0d70790c6f07a25b08fd7285e)), closes [#29](https://github.com/sebastjan-rijavec/webstructor/issues/29) [#d23a07](https://github.com/sebastjan-rijavec/webstructor/issues/d23a07) [#a82d05](https://github.com/sebastjan-rijavec/webstructor/issues/a82d05)
+* **ui:** rearrange right rail per [#25](https://github.com/sebastjan-rijavec/webstructor/issues/25) + [#26](https://github.com/sebastjan-rijavec/webstructor/issues/26) ([7339c9f](https://github.com/sebastjan-rijavec/webstructor/commit/7339c9ffcfe1ac884ffcb20ed1ae85fbac0e88e3))
+
+
+### Documentation
+
+* reflect PR-first release flow in RELEASING.md ([cf0da14](https://github.com/sebastjan-rijavec/webstructor/commit/cf0da147ba15eb2ffc66fb7e1cea961223704b3a))
+
 ## [0.2.0](https://github.com/sebastjan-rijavec/webstructor/compare/v0.1.0...v0.2.0) (2026-05-16)
 
 

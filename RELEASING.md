@@ -13,26 +13,53 @@ for someone using it.
 
 ## When to bump what
 
-| Change | Bump |
-| --- | --- |
-| Bug fix, perf tweak, refactor, doc edit | `patch` |
-| New feature, new UI element, new library asset | `minor` |
-| Removed/renamed public API, changed default behaviour, scene-file format change | `major` |
+| Change | Bump | Example |
+| --- | --- | --- |
+| Bug fix, perf tweak, refactor, doc edit | `patch` | `0.2.0` → `0.2.1` |
+| New feature, new UI element, new library asset | `minor` | `0.2.0` → `0.3.0` |
+| Removed/renamed public API, changed default behaviour, scene-file format change | `major` | `0.2.0` → `1.0.0` |
+
+The bump tier reflects the **kind of change**, not where the work came
+from. A bug reported in an issue is still a `patch`; a new feature you
+chose to add yourself is still a `minor`.
+
+**Mixed scope: highest tier wins.** If a PR bundles a bug fix and a small
+new feature, bump `minor`. Don't try to split into two releases unless the
+new feature is independently shippable.
 
 If unsure, prefer the smaller bump.
 
 ## The release flow
 
-1. Make sure `main` is clean and pushed:
+Two phases, separated by an explicit approval gate.
+
+### Phase 1 — build the change (on a feature branch, ends with a PR)
+
+1. Branch from a clean `main`:
    ```bash
-   git status        # working tree clean
-   git pull          # main is up to date
+   git checkout main && git pull
+   git checkout -b feature/<short-name>     # or fix/<short-name> for bug-only branches
    ```
-2. Pick the bump:
+2. Implement. Commit with conventional-commit prefixes (`feat:`, `fix:`,
+   `perf:`, `docs:`, ...) so the CHANGELOG groups entries by section.
+3. Push and open a PR:
    ```bash
-   npm run release:patch     # 0.1.0 → 0.1.1
-   npm run release:minor     # 0.1.0 → 0.2.0
-   npm run release:major     # 0.1.0 → 1.0.0
+   git push -u origin <branch>
+   gh pr create --base main --title "<short summary>" --body "Closes #<issue>"
+   ```
+4. **Stop.** Wait for review and merge.
+
+### Phase 2 — release (after the PR is merged to `main`)
+
+1. Pull merged `main`:
+   ```bash
+   git checkout main && git pull
+   ```
+2. Pick the bump tier based on the change that just landed:
+   ```bash
+   npm run release:patch     # 0.2.0 → 0.2.1
+   npm run release:minor     # 0.2.0 → 0.3.0
+   npm run release:major     # 0.2.0 → 1.0.0
    ```
 3. The script does the rest, in order:
    - bumps `package.json`
@@ -42,8 +69,9 @@ If unsure, prefer the smaller bump.
    - pushes commit + tag to `origin/main`
    - creates a GitHub Release with auto-generated notes
    - runs `npm run deploy` (build + rsync to home server)
+4. Close the related issues and the milestone (if all its issues are done).
 
-End-to-end: ~30 seconds plus the build.
+End-to-end (phase 2): ~30 seconds plus the build.
 
 ## Commit messages
 
@@ -72,14 +100,17 @@ The pattern that keeps things organised:
    the repo's *Milestones* tab.
 2. **File issues** for each chunk of scope and attach them to the
    milestone. One issue = one focused unit of work.
-3. **Develop on feature branches** — `feature/<short-name>` for non-trivial
-   work. Merge back to `main` when ready (close the issue via the merge
-   commit using `Closes #42`).
-4. When all issues in the milestone are closed, **run the release command
-   from `main`**. Close the milestone afterwards.
+3. **Develop on feature branches** — `feature/<short-name>` (or
+   `fix/<short-name>` for bug-only work). One PR per branch.
+4. **Open a PR to `main`** when the branch is ready. PR body should
+   reference the issue it closes (`Closes #42`). Never fast-forward
+   straight to `main` — the PR is the explicit approval gate.
+5. **Review and merge** the PR.
+6. **Run the release command from `main`** (see Phase 2 above). Close the
+   issues + the milestone afterwards.
 
-The `Releases` tab on GitHub will populate automatically (the publish
-script creates each release).
+The `Releases` tab on GitHub populates automatically (the publish script
+creates each release).
 
 ## Things that can go wrong
 
@@ -93,16 +124,20 @@ script creates each release).
 
 ## Hot fixes for a shipped version
 
-If `v0.2.0` is live and you need an urgent fix without dragging in `main`'s
-in-progress work:
+If `v0.2.0` is live and you need an urgent fix without dragging in
+unfinished work on `main`:
 
 ```bash
 git checkout -b hotfix/<thing> v0.2.0
 # fix it, commit
-git checkout main
-git merge --no-ff hotfix/<thing>
+git push -u origin hotfix/<thing>
+gh pr create --base main --title "fix: <thing>"
+# PR review + merge happens here
+git checkout main && git pull
 npm run release:patch              # publishes v0.2.1
 ```
+
+Same PR-first gate as a normal release.
 
 ## Pre-releases (alpha / beta)
 

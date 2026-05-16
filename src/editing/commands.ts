@@ -63,12 +63,7 @@ export function duplicateCommand(
   sources: THREE.Object3D[],
   selection: Selection,
 ): Command {
-  const clones = sources.map((src) => {
-    const clone = deepCloneObject(src);
-    // Offset a bit so the copy is visible.
-    clone.position.add(new THREE.Vector3(0.5, 0, 0.5));
-    return clone;
-  });
+  const clones = sources.map((src) => deepCloneObject(src));
   return {
     label: `Duplicate ${sources.length} object(s)`,
     do() {

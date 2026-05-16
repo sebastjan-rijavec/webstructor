@@ -156,9 +156,7 @@ function toggleGrid(): void {
 
 // --- Right rail (Mighty UI) -----------------------------------------------
 // Sole UI surface. Drives transform mode, snap, edit ops, history, FOV,
-// theme, and grid toggle. Export GLB lives separately as a bottom-center
-// floating button (see #export-button) — issue #22 wanted it more prominent
-// than a rail entry.
+// theme, grid toggle, and Download GLB (bottom-most rail section).
 const rail = createRightRail({
   container: document.getElementById("viewport-wrap")!,
   viewport,
@@ -188,18 +186,13 @@ const rail = createRightRail({
     if (selection.list.length)
       history.execute(deleteCommand(viewport.root, selection.list, selection));
   },
+  onExport: () => {
+    void exportGlb();
+  },
 });
 
 // Initial mode sync (the rail constructor sets the rest from initial* opts).
 rail.setMode("translate");
-
-// Floating Export GLB button — bottom-center of the viewport, primary action.
-const exportButton = document.getElementById(
-  "export-button",
-) as HTMLButtonElement;
-exportButton.addEventListener("click", () => {
-  void exportGlb();
-});
 
 history.onChange((canUndo, canRedo) => {
   rail.setHistoryState(canUndo, canRedo);

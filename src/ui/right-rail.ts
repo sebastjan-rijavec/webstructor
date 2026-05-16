@@ -5,8 +5,6 @@ import { createCameraOverlay } from "./camera-overlay";
 export type ToolMode = "translate" | "rotate" | "scale";
 export type ThemeName = "bright" | "dark";
 
-const FOV_PRESETS = [10, 25, 40, 50, 75, 100] as const;
-
 interface RightRailOptions {
   container: HTMLElement;
   viewport: Viewport;
@@ -25,6 +23,7 @@ interface RightRailOptions {
   onDuplicate: () => void;
   onGroup: () => void;
   onDelete: () => void;
+  onExport: () => void;
 }
 
 interface RightRailHandle {
@@ -34,7 +33,7 @@ interface RightRailHandle {
   setSnap: (snap: boolean) => void;
   /** Update the theme button label to point at the *opposite* theme. */
   setTheme: (theme: ThemeName) => void;
-  /** Sync the FOV pills with the live camera FOV. */
+  /** Sync the FOV chips with the live camera FOV (passthrough to camera overlay). */
   setFov: (fov: number) => void;
   /** Update the grid toggle button label to point at the *opposite* state. */
   setGridVisible: (visible: boolean) => void;
@@ -44,10 +43,15 @@ interface RightRailHandle {
 }
 
 /**
- * Right-side control rail: camera widget + FRAME, transform mode, snap,
- * edit operations, history. Lives alongside the legacy top toolbar — both
- * drive the same underlying actions, and `setMode`/`setSnap`/`setHistoryState`
- * keep the rail's visual state in sync when the legacy toolbar changes them.
+ * Right-side control rail. Top-to-bottom:
+ *   1. Camera widget (outer ring = views, inner ring = FOV chips, center
+ *      = 3D, FRAME pill below — all owned by camera-overlay.ts per #28)
+ *   2. 3-column row: Mode (Move/Rotate/Scale stacked) | Edit (Duplicate/
+ *      Group/Delete stacked) | Snap (tall pill spanning both columns)
+ *   3. Undo / Redo
+ *   4. Theme toggle / Grid toggle
+ *
+ * Visible spacing between each group via .right-rail-sections gap.
  */
 export function createRightRail(opts: RightRailOptions): RightRailHandle {
   const {
@@ -68,55 +72,56 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     onDuplicate,
     onGroup,
     onDelete,
+    onExport,
   } = opts;
 
   const el = document.createElement("div");
   el.className = "right-rail";
   container.appendChild(el);
 
-  // Camera overlay (top of the rail) — handles its own click wiring.
+  // Camera widget owns FRAME + FOV (per #28: outer ring = views, inner = FOV).
   const cameraHandle = createCameraOverlay({
     container: el,
     viewport,
     getSelectionBbox,
+    initialFov,
     onFrame,
+    onSetFov,
   });
 
-  // Sections below the camera widget.
   const sectionsEl = document.createElement("div");
   sectionsEl.className = "right-rail-sections";
   sectionsEl.innerHTML = `
-    <div class="right-rail-section" data-section="modes">
-      <button class="rail-btn rail-mode-btn" data-mode="translate">Move</button>
-      <button class="rail-btn rail-mode-btn" data-mode="rotate">Rotate</button>
-      <button class="rail-btn rail-mode-btn" data-mode="scale">Scale</button>
-    </div>
-    <div class="right-rail-section" data-section="snap">
-      <label class="rail-toggle">
+    <div class="right-rail-group right-rail-grid">
+      <div class="right-rail-col">
+        <button class="rail-btn rail-mode-btn" data-mode="translate">Move</button>
+        <button class="rail-btn rail-mode-btn" data-mode="rotate">Rotate</button>
+        <button class="rail-btn rail-mode-btn" data-mode="scale">Scale</button>
+      </div>
+      <div class="right-rail-col">
+        <button class="rail-btn" data-action="duplicate">Duplicate</button>
+        <button class="rail-btn" data-action="group">Group</button>
+        <button class="rail-btn" data-action="delete">Delete</button>
+      </div>
+      <label class="rail-snap-tall">
         <input type="checkbox" class="rail-snap-input" />
         <span>Snap</span>
       </label>
     </div>
-    <div class="right-rail-section" data-section="edit">
-      <button class="rail-btn" data-action="duplicate">Duplicate</button>
-      <button class="rail-btn" data-action="group">Group</button>
-      <button class="rail-btn" data-action="delete">Delete</button>
+    <div class="right-rail-group">
+      <div class="right-rail-row">
+        <button class="rail-btn" data-action="undo">Undo</button>
+        <button class="rail-btn" data-action="redo">Redo</button>
+      </div>
     </div>
-    <div class="right-rail-section" data-section="history">
-      <button class="rail-btn" data-action="undo">Undo</button>
-      <button class="rail-btn" data-action="redo">Redo</button>
+    <div class="right-rail-group">
+      <div class="right-rail-row">
+        <button class="rail-btn rail-theme-btn" data-action="theme">Dark</button>
+        <button class="rail-btn rail-grid-btn" data-action="grid">Hide Grid</button>
+      </div>
     </div>
-    <div class="right-rail-section right-rail-section-fov" data-section="fov">
-      <span class="right-rail-fov-label">FOV</span>
-      ${FOV_PRESETS.map(
-        (f) => `<button class="rail-btn rail-fov-btn" data-fov="${f}">${f}°</button>`,
-      ).join("")}
-    </div>
-    <div class="right-rail-section" data-section="theme">
-      <button class="rail-btn rail-theme-btn" data-action="theme">Dark</button>
-    </div>
-    <div class="right-rail-section" data-section="grid">
-      <button class="rail-btn rail-grid-btn" data-action="grid">Hide Grid</button>
+    <div class="right-rail-group">
+      <button class="rail-download-btn" data-action="export">Download GLB</button>
     </div>
   `;
   el.appendChild(sectionsEl);
@@ -133,16 +138,13 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     sectionsEl.querySelector<HTMLButtonElement>('[data-action="theme"]')!;
   const gridBtn =
     sectionsEl.querySelector<HTMLButtonElement>('[data-action="grid"]')!;
-  const fovButtons =
-    sectionsEl.querySelectorAll<HTMLButtonElement>(".rail-fov-btn");
 
   const onModeClick = (e: Event): void => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
       ".rail-mode-btn",
     );
     if (!btn) return;
-    const mode = btn.dataset.mode as ToolMode;
-    onSetMode(mode);
+    onSetMode(btn.dataset.mode as ToolMode);
   };
 
   const onActionClick = (e: Event): void => {
@@ -172,18 +174,10 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
       case "grid":
         onToggleGrid();
         break;
+      case "export":
+        onExport();
+        break;
     }
-  };
-
-  const onFovClick = (e: Event): void => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-      ".rail-fov-btn",
-    );
-    if (!btn) return;
-    const fov = Number(btn.dataset.fov);
-    if (!Number.isFinite(fov)) return;
-    setFov(fov);
-    onSetFov(fov);
   };
 
   const onSnapChange = (): void => {
@@ -192,7 +186,6 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
 
   sectionsEl.addEventListener("click", onModeClick);
   sectionsEl.addEventListener("click", onActionClick);
-  sectionsEl.addEventListener("click", onFovClick);
   snapInput.addEventListener("change", onSnapChange);
 
   function setMode(mode: ToolMode): void {
@@ -211,28 +204,19 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
   }
 
   function setTheme(theme: ThemeName): void {
-    // Button label points at the *destination* theme — the one that would
-    // become active if the user clicks now.
     themeBtn.textContent = theme === "bright" ? "Dark" : "Bright";
   }
 
   function setFov(fov: number): void {
-    fovButtons.forEach((b) => {
-      b.classList.toggle("active", Number(b.dataset.fov) === fov);
-    });
+    cameraHandle.setFov(fov);
   }
 
   function setGridVisible(visible: boolean): void {
-    // Destination-label pattern (matches the theme button): when the grid
-    // is visible the button reads "Hide Grid" because that's what clicking
-    // it will do; flipped when hidden.
     gridBtn.textContent = visible ? "Hide Grid" : "Show Grid";
   }
 
-  // Initial state — disable history buttons until history.onChange fires.
   setHistoryState(false, false);
   setTheme(initialTheme);
-  setFov(initialFov);
   setGridVisible(initialGridVisible);
 
   return {
@@ -245,7 +229,6 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     dispose: () => {
       sectionsEl.removeEventListener("click", onModeClick);
       sectionsEl.removeEventListener("click", onActionClick);
-      sectionsEl.removeEventListener("click", onFovClick);
       snapInput.removeEventListener("change", onSnapChange);
       cameraHandle.dispose();
       el.remove();

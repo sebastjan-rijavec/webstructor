@@ -242,11 +242,16 @@ export function createViewport(canvas: HTMLCanvasElement): Viewport {
   // Sun — warm, intense directional light casting real shadows. The IBL
   // still provides indirect diffuse and reflections; the sun adds the
   // dominant key + shadows so the scene reads as outdoor / lit.
+  //
+  // Softness comes from a wider PCF kernel (shadow.radius) on top of
+  // PCFSoftShadowMap, not from the light position — position stays at
+  // the original high angle.
   const dir = new THREE.DirectionalLight(0xfff4d6, 3.0);
   dir.position.set(8, 12, 6);
   dir.castShadow = true;
   dir.shadow.mapSize.set(2048, 2048);
   dir.shadow.bias = -0.0005;
+  dir.shadow.radius = 6; // PCF kernel radius — higher = softer penumbra
   // Orthographic shadow camera sized for a typical kitbash scene. Increase
   // these bounds (and the resolution above) if large assets clip out of
   // the shadow frustum.

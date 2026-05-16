@@ -8,8 +8,8 @@
   --fg-dim: #6a6055;
   --line: #2a2520;
   --line-soft: #b8aa92;
-  --accent: #d9532e;
-  --accent-hover: #c84823;
+  --accent: #d23a07;
+  --accent-hover: #a82d05;
   --accent-fg: #ffffff;
   --danger: #c84823;
   --scene-bg: #ebe4d3;
@@ -220,36 +220,40 @@ button.primary:hover {
   z-index: 4;
 }
 
-/* Export GLB — primary action, bottom-center of the viewport. Floats over
-   the canvas; sits above #hint via z-index. */
-#export-button {
-  position: absolute;
-  bottom: 48px;
-  left: 50%;
-  transform: translateX(-50%);
+/* Download GLB — primary action at the bottom of the rail. Round button
+   with a wrapped label, centered in its rail slot. */
+.rail-download-btn {
+  align-self: center;
+  width: 88px;
+  height: 88px;
   background: var(--accent);
   color: var(--accent-fg);
   border: 1px solid var(--accent);
-  border-radius: 999px;
-  padding: 10px 28px;
+  border-radius: 50%;
+  padding: 8px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  line-height: 1.25;
   cursor: pointer;
-  z-index: 4;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   transition: background 0.12s ease, border-color 0.12s ease,
     transform 0.05s ease;
 }
 
-#export-button:hover {
+.rail-download-btn:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
 
-#export-button:active {
-  transform: translateX(-50%) scale(0.97);
+.rail-download-btn:active {
+  transform: scale(0.97);
 }
 
 /* --- Right rail (Mighty UI / milestone #4) ------------------------------- */
@@ -360,18 +364,6 @@ button.primary:hover {
   opacity: 0.55;
 }
 
-.camera-overlay-pitch-label {
-  position: absolute;
-  top: calc(50% - var(--cam-inner-radius) - 12px);
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: var(--fg);
-  opacity: 0.6;
-  pointer-events: none;
-}
-
 .cam-btn {
   position: absolute;
   display: inline-flex;
@@ -441,16 +433,58 @@ button.primary:hover {
   left: calc(50% + var(--cam-outer-radius));
 }
 
-/* Inner ring positions match the design: BOT at NW, TOP at SE — 45° off the
-   cardinal axes. cos(45°) * inner-radius ≈ 35px for the chosen radius. */
-.cam-btn.cam-bot {
-  top: calc(50% - 0.7071 * var(--cam-inner-radius));
-  left: calc(50% - 0.7071 * var(--cam-inner-radius));
-}
+/* Outer-ring poles (per #28: BOT and TOP join the outer ring). Logically
+   aligned: TOP at NW (upper diagonal), BOT at SE (lower diagonal), so the
+   pole that's "up" lives in the top half of the widget. cos(45°) ≈ 0.7071. */
 .cam-btn.cam-top {
-  top: calc(50% + 0.7071 * var(--cam-inner-radius));
-  left: calc(50% + 0.7071 * var(--cam-inner-radius));
+  top: calc(50% - 0.7071 * var(--cam-outer-radius));
+  left: calc(50% - 0.7071 * var(--cam-outer-radius));
 }
+.cam-btn.cam-bot {
+  top: calc(50% + 0.7071 * var(--cam-outer-radius));
+  left: calc(50% + 0.7071 * var(--cam-outer-radius));
+}
+
+/* Inner-ring FOV chips (per #28). Six positions evenly spaced 60° apart,
+   starting at 12 o'clock and going clockwise: 10°, 25°, 40°, 50°, 75°, 100°.
+   sin(60°) = cos(30°) ≈ 0.8660. */
+.cam-btn.cam-fov {
+  width: 32px;
+  height: 32px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+.cam-btn.cam-fov-i0 {
+  /* 12 o'clock — N */
+  top: calc(50% - var(--cam-inner-radius));
+  left: 50%;
+}
+.cam-btn.cam-fov-i1 {
+  /* 60° from N clockwise — upper-right */
+  top: calc(50% - 0.5 * var(--cam-inner-radius));
+  left: calc(50% + 0.866 * var(--cam-inner-radius));
+}
+.cam-btn.cam-fov-i2 {
+  /* 120° — lower-right */
+  top: calc(50% + 0.5 * var(--cam-inner-radius));
+  left: calc(50% + 0.866 * var(--cam-inner-radius));
+}
+.cam-btn.cam-fov-i3 {
+  /* 6 o'clock — S */
+  top: calc(50% + var(--cam-inner-radius));
+  left: 50%;
+}
+.cam-btn.cam-fov-i4 {
+  /* 240° — lower-left */
+  top: calc(50% + 0.5 * var(--cam-inner-radius));
+  left: calc(50% - 0.866 * var(--cam-inner-radius));
+}
+.cam-btn.cam-fov-i5 {
+  /* 300° — upper-left */
+  top: calc(50% - 0.5 * var(--cam-inner-radius));
+  left: calc(50% - 0.866 * var(--cam-inner-radius));
+}
+
 
 /* Active state — applied to the button matching the live view. The center
    3D button already styles as red; .active gives the same treatment to the
@@ -461,76 +495,84 @@ button.primary:hover {
   color: var(--accent-fg);
 }
 
-/* When a non-center view is active, the center 3D button reverts to the
-   neutral look so it doesn't read as also-active. */
-.camera-overlay-ring:has(.cam-outer.active, .cam-inner.active)
-  .cam-btn.cam-center {
+/* When another view button is active, the center 3D button reverts to the
+   neutral look so it doesn't read as also-active. Scoped to .cam-outer.active
+   only — FOV chips (.cam-inner.cam-fov.active) shouldn't dim 3D. */
+.camera-overlay-ring:has(.cam-outer.active) .cam-btn.cam-center {
   background: var(--bg-elev);
   color: var(--fg);
   border-color: var(--line);
   font-weight: 400;
 }
 
-.camera-overlay-caption {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: -4px;
-  text-align: center;
-  pointer-events: none;
-}
-
-.camera-overlay-caption strong {
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  font-size: 11px;
-}
-
-.camera-overlay-caption span {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  color: var(--fg-dim);
-  opacity: 0.85;
-}
-
-.camera-overlay-frame {
-  margin-top: 4px;
-  background: var(--bg-elev);
-  color: var(--fg);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 6px 18px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: background 0.12s ease, transform 0.05s ease;
-}
-
-.camera-overlay-frame:hover {
-  background: var(--bg-elev-2);
-}
-
-.camera-overlay-frame:active {
-  transform: scale(0.96);
-}
-
-/* --- Right rail sections ------------------------------------------------- */
+/* --- Right rail sections (issue #25 layout) ----------------------------- */
 
 .right-rail-sections {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 18px;          /* visible breathing space between groups */
   width: 100%;
+  margin-top: 8px;    /* separates rail from the camera widget caption above */
 }
 
-.right-rail-section {
+.right-rail-group {
   display: flex;
+  flex-direction: column;
   gap: 4px;
   pointer-events: auto;
+}
+
+/* 3-column grid: Mode column | Edit column | Snap (full-height pill). */
+.right-rail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.right-rail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.right-rail-row {
+  display: flex;
+  gap: 4px;
+}
+
+/* Snap pill — tall, single column, vertical label. */
+.rail-snap-tall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 48px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 10px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.rail-snap-tall input {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+  transform: scale(1.2);
+}
+
+.rail-snap-tall span {
+  /* Rotated for the tall pill so the label reads top-to-bottom. */
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
 }
 
 .rail-btn {
@@ -569,59 +611,34 @@ button.primary:hover {
   color: var(--accent-fg);
 }
 
-.rail-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  pointer-events: auto;
-  width: 100%;
-  justify-content: center;
-}
-
-.rail-toggle input {
-  margin: 0;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
-
-/* FOV row — label + 6 compact pills. Wraps to a second line when the rail
-   gets too narrow (defensive against future layout shrink). */
-.right-rail-section-fov {
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.right-rail-fov-label {
-  font-size: 10px;
-  color: var(--fg-dim);
-  letter-spacing: 0.16em;
-  margin-right: 2px;
-}
-
-.rail-fov-btn {
-  flex: 1 1 auto;
-  min-width: 36px;
-  padding: 6px 6px;
-}
-
-/* Primary call-to-action — Export GLB. Same red as the central 3D button
-   so it reads as the most important action in the rail. */
-.rail-btn-primary {
+/* FOV chip active state — for the inner-ring chips in the camera widget. */
+.cam-btn.cam-fov.active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-fg);
-  font-weight: 700;
 }
 
-.rail-btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+/* FRAME pill below the camera widget — small primary-flavoured button. */
+.camera-overlay-frame {
+  margin-top: 4px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 18px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.12s ease, transform 0.05s ease;
+}
+
+.camera-overlay-frame:hover {
+  background: var(--bg-elev-2);
+}
+
+.camera-overlay-frame:active {
+  transform: scale(0.96);
 }

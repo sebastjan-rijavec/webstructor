@@ -53,27 +53,21 @@ export function createCameraOverlay(
       <button class="cam-btn cam-outer cam-right" data-view="right">RIGHT</button>
       <button class="cam-btn cam-inner cam-bot" data-view="bottom">BOT</button>
       <button class="cam-btn cam-inner cam-top" data-view="top">TOP</button>
+      <button class="cam-btn cam-inner cam-frame" data-action="frame">FRAME</button>
       <button class="cam-btn cam-center" data-view="perspective">3D</button>
     </div>
     <div class="camera-overlay-caption">
       <strong>ORBIT STACK</strong>
       <span>Two rings split the motion: outer = yaw, inner = pitch.</span>
     </div>
-    <button class="camera-overlay-frame" data-action="frame">FRAME</button>
   `;
   container.appendChild(el);
 
   const cubeEl = el.querySelector<HTMLElement>(".camera-overlay-cube")!;
-
-  const frameBtn = el.querySelector<HTMLButtonElement>(
-    ".camera-overlay-frame",
-  )!;
-  frameBtn.addEventListener("click", onFrame);
-
   const viewNameEl = el.querySelector<HTMLElement>(
     ".camera-overlay-view-name",
   )!;
-  const buttons = el.querySelectorAll<HTMLButtonElement>("button[data-view]");
+  const viewButtons = el.querySelectorAll<HTMLButtonElement>("button[data-view]");
 
   let currentView: ViewName = viewport.view;
 
@@ -81,7 +75,7 @@ export function createCameraOverlay(
     currentView = view;
     viewNameEl.textContent = LABEL[view];
     cubeEl.innerHTML = cubeIconSvg(view);
-    buttons.forEach((b) => {
+    viewButtons.forEach((b) => {
       b.classList.toggle("active", b.dataset.view === view);
     });
   }
@@ -89,19 +83,24 @@ export function createCameraOverlay(
   applyActive(currentView);
 
   const onClick = async (e: Event): Promise<void> => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-      "button[data-view]",
-    );
-    if (!btn) return;
-    const v = btn.dataset.view as ViewName;
+    const target = e.target as HTMLElement;
+    // FRAME button — sits inside the ring, treated as a separate action.
+    if (target.closest('[data-action="frame"]')) {
+      onFrame();
+      return;
+    }
+    // View button (cardinals + poles + 3D)
+    const viewBtn = target.closest<HTMLButtonElement>("button[data-view]");
+    if (!viewBtn) return;
+    const v = viewBtn.dataset.view as ViewName;
     if (v === viewport.view) return;
     applyActive(v);
     await viewport.setView(v, getSelectionBbox());
   };
   el.addEventListener("click", onClick);
 
-  // Keep the overlay in sync when another UI (the legacy toolbar) drives the
-  // view. Polling on tick is cheap — a single string compare per frame.
+  // Keep the overlay in sync when another UI drives the view. Polling on
+  // tick is cheap — a single string compare per frame.
   const unsubscribeTick = viewport.onTick(() => {
     if (viewport.view !== currentView) applyActive(viewport.view);
   });

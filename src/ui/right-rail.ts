@@ -34,7 +34,7 @@ interface RightRailHandle {
   setSnap: (snap: boolean) => void;
   /** Update the theme button label to point at the *opposite* theme. */
   setTheme: (theme: ThemeName) => void;
-  /** Sync the FOV pills with the live camera FOV. */
+  /** Sync the FOV chips with the live camera FOV (passthrough to camera overlay). */
   setFov: (fov: number) => void;
   /** Update the grid toggle button label to point at the *opposite* state. */
   setGridVisible: (visible: boolean) => void;
@@ -44,10 +44,15 @@ interface RightRailHandle {
 }
 
 /**
- * Right-side control rail: camera widget + FRAME, transform mode, snap,
- * edit operations, history. Lives alongside the legacy top toolbar — both
- * drive the same underlying actions, and `setMode`/`setSnap`/`setHistoryState`
- * keep the rail's visual state in sync when the legacy toolbar changes them.
+ * Right-side control rail. Top-to-bottom:
+ *   1. Camera widget (cube preview, view ring, inner ring with FRAME)
+ *   2. FOV row (directly under the camera widget per sub-issue #26)
+ *   3. 3-column row: Mode (Move/Rotate/Scale stacked) | Edit (Duplicate/
+ *      Group/Delete stacked) | Snap (tall pill spanning both columns)
+ *   4. Undo / Redo
+ *   5. Theme toggle / Grid toggle
+ *
+ * Visible spacing between each group via .right-rail-sections gap.
  */
 export function createRightRail(opts: RightRailOptions): RightRailHandle {
   const {
@@ -74,7 +79,7 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
   el.className = "right-rail";
   container.appendChild(el);
 
-  // Camera overlay (top of the rail) — handles its own click wiring.
+  // Camera widget owns FRAME (inner ring). FOV is rail-side now per #26.
   const cameraHandle = createCameraOverlay({
     container: el,
     viewport,
@@ -82,41 +87,45 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     onFrame,
   });
 
-  // Sections below the camera widget.
   const sectionsEl = document.createElement("div");
   sectionsEl.className = "right-rail-sections";
   sectionsEl.innerHTML = `
-    <div class="right-rail-section" data-section="modes">
-      <button class="rail-btn rail-mode-btn" data-mode="translate">Move</button>
-      <button class="rail-btn rail-mode-btn" data-mode="rotate">Rotate</button>
-      <button class="rail-btn rail-mode-btn" data-mode="scale">Scale</button>
+    <div class="right-rail-group">
+      <div class="right-rail-fov-row">
+        <span class="right-rail-fov-label">FOV</span>
+        ${FOV_PRESETS.map(
+          (f) =>
+            `<button class="rail-btn rail-fov-btn" data-fov="${f}">${f}°</button>`,
+        ).join("")}
+      </div>
     </div>
-    <div class="right-rail-section" data-section="snap">
-      <label class="rail-toggle">
+    <div class="right-rail-group right-rail-grid">
+      <div class="right-rail-col">
+        <button class="rail-btn rail-mode-btn" data-mode="translate">Move</button>
+        <button class="rail-btn rail-mode-btn" data-mode="rotate">Rotate</button>
+        <button class="rail-btn rail-mode-btn" data-mode="scale">Scale</button>
+      </div>
+      <div class="right-rail-col">
+        <button class="rail-btn" data-action="duplicate">Duplicate</button>
+        <button class="rail-btn" data-action="group">Group</button>
+        <button class="rail-btn" data-action="delete">Delete</button>
+      </div>
+      <label class="rail-snap-tall">
         <input type="checkbox" class="rail-snap-input" />
         <span>Snap</span>
       </label>
     </div>
-    <div class="right-rail-section" data-section="edit">
-      <button class="rail-btn" data-action="duplicate">Duplicate</button>
-      <button class="rail-btn" data-action="group">Group</button>
-      <button class="rail-btn" data-action="delete">Delete</button>
+    <div class="right-rail-group">
+      <div class="right-rail-row">
+        <button class="rail-btn" data-action="undo">Undo</button>
+        <button class="rail-btn" data-action="redo">Redo</button>
+      </div>
     </div>
-    <div class="right-rail-section" data-section="history">
-      <button class="rail-btn" data-action="undo">Undo</button>
-      <button class="rail-btn" data-action="redo">Redo</button>
-    </div>
-    <div class="right-rail-section right-rail-section-fov" data-section="fov">
-      <span class="right-rail-fov-label">FOV</span>
-      ${FOV_PRESETS.map(
-        (f) => `<button class="rail-btn rail-fov-btn" data-fov="${f}">${f}°</button>`,
-      ).join("")}
-    </div>
-    <div class="right-rail-section" data-section="theme">
-      <button class="rail-btn rail-theme-btn" data-action="theme">Dark</button>
-    </div>
-    <div class="right-rail-section" data-section="grid">
-      <button class="rail-btn rail-grid-btn" data-action="grid">Hide Grid</button>
+    <div class="right-rail-group">
+      <div class="right-rail-row">
+        <button class="rail-btn rail-theme-btn" data-action="theme">Dark</button>
+        <button class="rail-btn rail-grid-btn" data-action="grid">Hide Grid</button>
+      </div>
     </div>
   `;
   el.appendChild(sectionsEl);
@@ -141,8 +150,7 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
       ".rail-mode-btn",
     );
     if (!btn) return;
-    const mode = btn.dataset.mode as ToolMode;
-    onSetMode(mode);
+    onSetMode(btn.dataset.mode as ToolMode);
   };
 
   const onActionClick = (e: Event): void => {
@@ -211,8 +219,6 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
   }
 
   function setTheme(theme: ThemeName): void {
-    // Button label points at the *destination* theme — the one that would
-    // become active if the user clicks now.
     themeBtn.textContent = theme === "bright" ? "Dark" : "Bright";
   }
 
@@ -223,13 +229,9 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
   }
 
   function setGridVisible(visible: boolean): void {
-    // Destination-label pattern (matches the theme button): when the grid
-    // is visible the button reads "Hide Grid" because that's what clicking
-    // it will do; flipped when hidden.
     gridBtn.textContent = visible ? "Hide Grid" : "Show Grid";
   }
 
-  // Initial state — disable history buttons until history.onChange fires.
   setHistoryState(false, false);
   setTheme(initialTheme);
   setFov(initialFov);

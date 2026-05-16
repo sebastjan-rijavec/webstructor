@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.3.0](https://github.com/sebastjan-rijavec/webstructor/compare/v0.2.1...v0.3.0) (2026-05-16)
+
+
+### Features
+
+* **persistence:** session save/restore + autosave (closes [#24](https://github.com/sebastjan-rijavec/webstructor/issues/24)) ([cd6a00f](https://github.com/sebastjan-rijavec/webstructor/commit/cd6a00f02627f233c0a088efc1da0e874a3b92c7))
+* **ui:** toast notification on successful autosave ([a53ae89](https://github.com/sebastjan-rijavec/webstructor/commit/a53ae89bae0d60b2d33e633e9eb496c78e27e2a6))
+
 ## [0.2.1](https://github.com/sebastjan-rijavec/webstructor/compare/v0.2.0...v0.2.1) (2026-05-16)
 
 

@@ -13,17 +13,18 @@ interface RightRailOptions {
   getSelectionBbox: () => THREE.Box3 | undefined;
   initialTheme: ThemeName;
   initialFov: number;
+  initialGridVisible: boolean;
   onFrame: () => void;
   onSetMode: (mode: ToolMode) => void;
   onToggleSnap: (snap: boolean) => void;
   onToggleTheme: () => void;
+  onToggleGrid: () => void;
   onSetFov: (fov: number) => void;
   onUndo: () => void;
   onRedo: () => void;
   onDuplicate: () => void;
   onGroup: () => void;
   onDelete: () => void;
-  onExport: () => void;
 }
 
 interface RightRailHandle {
@@ -35,6 +36,8 @@ interface RightRailHandle {
   setTheme: (theme: ThemeName) => void;
   /** Sync the FOV pills with the live camera FOV. */
   setFov: (fov: number) => void;
+  /** Update the grid toggle button label to point at the *opposite* state. */
+  setGridVisible: (visible: boolean) => void;
   /** Enable/disable Undo and Redo according to history availability. */
   setHistoryState: (canUndo: boolean, canRedo: boolean) => void;
   dispose: () => void;
@@ -53,17 +56,18 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     getSelectionBbox,
     initialTheme,
     initialFov,
+    initialGridVisible,
     onFrame,
     onSetMode,
     onToggleSnap,
     onToggleTheme,
+    onToggleGrid,
     onSetFov,
     onUndo,
     onRedo,
     onDuplicate,
     onGroup,
     onDelete,
-    onExport,
   } = opts;
 
   const el = document.createElement("div");
@@ -108,11 +112,11 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
         (f) => `<button class="rail-btn rail-fov-btn" data-fov="${f}">${f}°</button>`,
       ).join("")}
     </div>
-    <div class="right-rail-section" data-section="export">
-      <button class="rail-btn rail-btn-primary" data-action="export">Export GLB</button>
-    </div>
     <div class="right-rail-section" data-section="theme">
       <button class="rail-btn rail-theme-btn" data-action="theme">Dark</button>
+    </div>
+    <div class="right-rail-section" data-section="grid">
+      <button class="rail-btn rail-grid-btn" data-action="grid">Hide Grid</button>
     </div>
   `;
   el.appendChild(sectionsEl);
@@ -127,6 +131,8 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     sectionsEl.querySelector<HTMLButtonElement>('[data-action="redo"]')!;
   const themeBtn =
     sectionsEl.querySelector<HTMLButtonElement>('[data-action="theme"]')!;
+  const gridBtn =
+    sectionsEl.querySelector<HTMLButtonElement>('[data-action="grid"]')!;
   const fovButtons =
     sectionsEl.querySelectorAll<HTMLButtonElement>(".rail-fov-btn");
 
@@ -163,8 +169,8 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
       case "theme":
         onToggleTheme();
         break;
-      case "export":
-        onExport();
+      case "grid":
+        onToggleGrid();
         break;
     }
   };
@@ -216,16 +222,25 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     });
   }
 
+  function setGridVisible(visible: boolean): void {
+    // Destination-label pattern (matches the theme button): when the grid
+    // is visible the button reads "Hide Grid" because that's what clicking
+    // it will do; flipped when hidden.
+    gridBtn.textContent = visible ? "Hide Grid" : "Show Grid";
+  }
+
   // Initial state — disable history buttons until history.onChange fires.
   setHistoryState(false, false);
   setTheme(initialTheme);
   setFov(initialFov);
+  setGridVisible(initialGridVisible);
 
   return {
     setMode,
     setSnap,
     setTheme,
     setFov,
+    setGridVisible,
     setHistoryState,
     dispose: () => {
       sectionsEl.removeEventListener("click", onModeClick);

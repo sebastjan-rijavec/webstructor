@@ -5,8 +5,6 @@ import { createCameraOverlay } from "./camera-overlay";
 export type ToolMode = "translate" | "rotate" | "scale";
 export type ThemeName = "bright" | "dark";
 
-const FOV_PRESETS = [10, 25, 40, 50, 75, 100] as const;
-
 interface RightRailOptions {
   container: HTMLElement;
   viewport: Viewport;
@@ -25,6 +23,7 @@ interface RightRailOptions {
   onDuplicate: () => void;
   onGroup: () => void;
   onDelete: () => void;
+  onExport: () => void;
 }
 
 interface RightRailHandle {
@@ -45,12 +44,12 @@ interface RightRailHandle {
 
 /**
  * Right-side control rail. Top-to-bottom:
- *   1. Camera widget (cube preview, view ring, inner ring with FRAME)
- *   2. FOV row (directly under the camera widget per sub-issue #26)
- *   3. 3-column row: Mode (Move/Rotate/Scale stacked) | Edit (Duplicate/
+ *   1. Camera widget (outer ring = views, inner ring = FOV chips, center
+ *      = 3D, FRAME pill below — all owned by camera-overlay.ts per #28)
+ *   2. 3-column row: Mode (Move/Rotate/Scale stacked) | Edit (Duplicate/
  *      Group/Delete stacked) | Snap (tall pill spanning both columns)
- *   4. Undo / Redo
- *   5. Theme toggle / Grid toggle
+ *   3. Undo / Redo
+ *   4. Theme toggle / Grid toggle
  *
  * Visible spacing between each group via .right-rail-sections gap.
  */
@@ -73,32 +72,26 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     onDuplicate,
     onGroup,
     onDelete,
+    onExport,
   } = opts;
 
   const el = document.createElement("div");
   el.className = "right-rail";
   container.appendChild(el);
 
-  // Camera widget owns FRAME (inner ring). FOV is rail-side now per #26.
+  // Camera widget owns FRAME + FOV (per #28: outer ring = views, inner = FOV).
   const cameraHandle = createCameraOverlay({
     container: el,
     viewport,
     getSelectionBbox,
+    initialFov,
     onFrame,
+    onSetFov,
   });
 
   const sectionsEl = document.createElement("div");
   sectionsEl.className = "right-rail-sections";
   sectionsEl.innerHTML = `
-    <div class="right-rail-group">
-      <div class="right-rail-fov-row">
-        <span class="right-rail-fov-label">FOV</span>
-        ${FOV_PRESETS.map(
-          (f) =>
-            `<button class="rail-btn rail-fov-btn" data-fov="${f}">${f}°</button>`,
-        ).join("")}
-      </div>
-    </div>
     <div class="right-rail-group right-rail-grid">
       <div class="right-rail-col">
         <button class="rail-btn rail-mode-btn" data-mode="translate">Move</button>
@@ -127,6 +120,9 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
         <button class="rail-btn rail-grid-btn" data-action="grid">Hide Grid</button>
       </div>
     </div>
+    <div class="right-rail-group">
+      <button class="rail-download-btn" data-action="export">Download GLB</button>
+    </div>
   `;
   el.appendChild(sectionsEl);
 
@@ -142,8 +138,6 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     sectionsEl.querySelector<HTMLButtonElement>('[data-action="theme"]')!;
   const gridBtn =
     sectionsEl.querySelector<HTMLButtonElement>('[data-action="grid"]')!;
-  const fovButtons =
-    sectionsEl.querySelectorAll<HTMLButtonElement>(".rail-fov-btn");
 
   const onModeClick = (e: Event): void => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
@@ -180,18 +174,10 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
       case "grid":
         onToggleGrid();
         break;
+      case "export":
+        onExport();
+        break;
     }
-  };
-
-  const onFovClick = (e: Event): void => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-      ".rail-fov-btn",
-    );
-    if (!btn) return;
-    const fov = Number(btn.dataset.fov);
-    if (!Number.isFinite(fov)) return;
-    setFov(fov);
-    onSetFov(fov);
   };
 
   const onSnapChange = (): void => {
@@ -200,7 +186,6 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
 
   sectionsEl.addEventListener("click", onModeClick);
   sectionsEl.addEventListener("click", onActionClick);
-  sectionsEl.addEventListener("click", onFovClick);
   snapInput.addEventListener("change", onSnapChange);
 
   function setMode(mode: ToolMode): void {
@@ -223,9 +208,7 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
   }
 
   function setFov(fov: number): void {
-    fovButtons.forEach((b) => {
-      b.classList.toggle("active", Number(b.dataset.fov) === fov);
-    });
+    cameraHandle.setFov(fov);
   }
 
   function setGridVisible(visible: boolean): void {
@@ -234,7 +217,6 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
 
   setHistoryState(false, false);
   setTheme(initialTheme);
-  setFov(initialFov);
   setGridVisible(initialGridVisible);
 
   return {
@@ -247,7 +229,6 @@ export function createRightRail(opts: RightRailOptions): RightRailHandle {
     dispose: () => {
       sectionsEl.removeEventListener("click", onModeClick);
       sectionsEl.removeEventListener("click", onActionClick);
-      sectionsEl.removeEventListener("click", onFovClick);
       snapInput.removeEventListener("change", onSnapChange);
       cameraHandle.dispose();
       el.remove();

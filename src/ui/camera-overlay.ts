@@ -6,10 +6,14 @@ interface CameraOverlayOptions {
   container: HTMLElement;
   viewport: Viewport;
   getSelectionBbox: () => THREE.Box3 | undefined;
+  initialFov: number;
   onFrame: () => void;
+  onSetFov: (fov: number) => void;
 }
 
 interface CameraOverlayHandle {
+  /** Sync the active FOV chip when something else drives camera.fov. */
+  setFov: (fov: number) => void;
   dispose: () => void;
 }
 
@@ -23,6 +27,11 @@ const LABEL: Record<ViewName, string> = {
   bottom: "BOT",
 };
 
+// Per issue #28, all 6 view buttons live on the outer ring; FOV moves to
+// the inner ring. FOV chips clockwise from N at 60° intervals so the values
+// sweep visually in order.
+const FOV_INNER = [10, 25, 40, 50, 75, 100] as const;
+
 /**
  * Radial camera overlay — mounts inside `container` (typically the relatively-
  * positioned viewport wrapper). Snaps the camera to the clicked view and
@@ -33,7 +42,15 @@ const LABEL: Record<ViewName, string> = {
 export function createCameraOverlay(
   opts: CameraOverlayOptions,
 ): CameraOverlayHandle {
-  const { container, viewport, getSelectionBbox, onFrame } = opts;
+  const { container, viewport, getSelectionBbox, initialFov, onFrame, onSetFov } =
+    opts;
+
+  // Inner-ring FOV chips, generated dynamically so the layout slot
+  // (cam-fov-i0 .. cam-fov-i5) carries the angular position via CSS.
+  const fovChipsHtml = FOV_INNER.map(
+    (fov, i) =>
+      `<button class="cam-btn cam-inner cam-fov cam-fov-i${i}" data-fov="${fov}">${fov}°</button>`,
+  ).join("");
 
   const el = document.createElement("div");
   el.className = "camera-overlay";
@@ -46,20 +63,16 @@ export function createCameraOverlay(
     <div class="camera-overlay-ring">
       <div class="camera-overlay-outer-ring"></div>
       <div class="camera-overlay-inner-ring"></div>
-      <span class="camera-overlay-pitch-label">PITCH</span>
       <button class="cam-btn cam-outer cam-front" data-view="front">FRONT</button>
       <button class="cam-btn cam-outer cam-back" data-view="back">BACK</button>
       <button class="cam-btn cam-outer cam-left" data-view="left">LEFT</button>
       <button class="cam-btn cam-outer cam-right" data-view="right">RIGHT</button>
-      <button class="cam-btn cam-inner cam-bot" data-view="bottom">BOT</button>
-      <button class="cam-btn cam-inner cam-top" data-view="top">TOP</button>
-      <button class="cam-btn cam-inner cam-frame" data-action="frame">FRAME</button>
+      <button class="cam-btn cam-outer cam-bot" data-view="bottom">BOT</button>
+      <button class="cam-btn cam-outer cam-top" data-view="top">TOP</button>
+      ${fovChipsHtml}
       <button class="cam-btn cam-center" data-view="perspective">3D</button>
     </div>
-    <div class="camera-overlay-caption">
-      <strong>ORBIT STACK</strong>
-      <span>Two rings split the motion: outer = yaw, inner = pitch.</span>
-    </div>
+    <button class="camera-overlay-frame" data-action="frame">FRAME</button>
   `;
   container.appendChild(el);
 
@@ -68,6 +81,7 @@ export function createCameraOverlay(
     ".camera-overlay-view-name",
   )!;
   const viewButtons = el.querySelectorAll<HTMLButtonElement>("button[data-view]");
+  const fovButtons = el.querySelectorAll<HTMLButtonElement>(".cam-fov");
 
   let currentView: ViewName = viewport.view;
 
@@ -80,16 +94,30 @@ export function createCameraOverlay(
     });
   }
 
+  function setFov(fov: number): void {
+    fovButtons.forEach((b) => {
+      b.classList.toggle("active", Number(b.dataset.fov) === fov);
+    });
+  }
+
   applyActive(currentView);
+  setFov(initialFov);
 
   const onClick = async (e: Event): Promise<void> => {
     const target = e.target as HTMLElement;
-    // FRAME button — sits inside the ring, treated as a separate action.
     if (target.closest('[data-action="frame"]')) {
       onFrame();
       return;
     }
-    // View button (cardinals + poles + 3D)
+    const fovBtn = target.closest<HTMLButtonElement>(".cam-fov");
+    if (fovBtn) {
+      const fov = Number(fovBtn.dataset.fov);
+      if (Number.isFinite(fov)) {
+        setFov(fov);
+        onSetFov(fov);
+      }
+      return;
+    }
     const viewBtn = target.closest<HTMLButtonElement>("button[data-view]");
     if (!viewBtn) return;
     const v = viewBtn.dataset.view as ViewName;
@@ -106,6 +134,7 @@ export function createCameraOverlay(
   });
 
   return {
+    setFov,
     dispose: () => {
       unsubscribeTick();
       el.removeEventListener("click", onClick);
